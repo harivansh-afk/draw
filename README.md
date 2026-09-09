@@ -1,124 +1,144 @@
-<a href="https://excalidraw.com/" target="_blank" rel="noopener">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />
-    <img alt="Excalidraw" src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2.png" />
-  </picture>
-</a>
+# draw
 
-<h4 align="center">
-  <a href="https://excalidraw.com">Excalidraw Editor</a> |
-  <a href="https://plus.excalidraw.com/blog">Blog</a> |
-  <a href="https://docs.excalidraw.com">Documentation</a> |
-  <a href="https://plus.excalidraw.com">Excalidraw+</a>
-</h4>
+Self-hosted Excalidraw+. The editor is excalidraw.com's own code, unmodified in
+behaviour. Around it: accounts, a dashboard, persistent scenes with autosave,
+always-on live collaboration on every scene, share links with view or edit
+access, snapshot links, a synced library, thumbnails, collections and trash.
+One Go binary, one SQLite database, one data directory.
 
-<div align="center">
-  <h2>
-    An open source virtual hand-drawn style whiteboard. </br>
-    Collaborative and end-to-end encrypted. </br>
-  <br />
-  </h2>
-</div>
+This repository is a fork of [excalidraw/excalidraw](https://github.com/excalidraw/excalidraw).
+Everything under `packages/` is upstream, untouched. The application shell in
+`excalidraw-app/` is upstream's excalidraw.com app with its Firebase and
+socket.io plumbing swapped for the server in `server/`.
 
-<br />
-<p align="center">
-  <a href="https://github.com/excalidraw/excalidraw/blob/master/LICENSE">
-    <img alt="Excalidraw is released under the MIT license." src="https://img.shields.io/badge/license-MIT-blue.svg"  /></a>
-  <a href="https://www.npmjs.com/package/@excalidraw/excalidraw">
-    <img alt="npm downloads/month" src="https://img.shields.io/npm/dm/@excalidraw/excalidraw"  /></a>
-  <a href="https://docs.excalidraw.com/docs/introduction/contributing">
-    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"  /></a>
-  <a href="https://discord.gg/UexuTaE">
-    <img alt="Chat on Discord" src="https://img.shields.io/discord/723672430744174682?color=738ad6&label=Chat%20on%20Discord&logo=discord&logoColor=ffffff&widget=false"/></a>
-  <a href="https://deepwiki.com/excalidraw/excalidraw">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" /></a>
-  <a href="https://twitter.com/excalidraw">
-    <img alt="Follow Excalidraw on Twitter" src="https://img.shields.io/twitter/follow/excalidraw.svg?label=follow+@excalidraw&style=social&logo=twitter"/></a>
-</p>
+## What you get
 
-<div align="center">
-  <figure>
-    <a href="https://excalidraw.com" target="_blank" rel="noopener">
-      <img src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github%2Fproduct_showcase.png" alt="Product showcase" />
-    </a>
-    <figcaption>
-      <p align="center">
-        Create beautiful hand-drawn like diagrams, wireframes, or whatever you like.
-      </p>
-    </figcaption>
-  </figure>
-</div>
+| Route | What it is |
+| --- | --- |
+| `/` | Dashboard: scenes grid with thumbnails, collections, trash, search, import of `.excalidraw` files. Sign-in screen when signed out. |
+| `/s/<id>` | A saved scene in the editor. Autosaves two seconds after each change. Always live: open it twice and you get cursors, selections and follow mode. |
+| `/local` | excalidraw.com verbatim: local storage, `#json=` snapshot import, ad-hoc `#room=` sessions. No account needed. |
 
-## Features
+Sharing is per scene: **Private**, **anyone with the link can view**, or
+**anyone with the link can edit**. The server enforces it on HTTP and on the
+WebSocket relay; turning a link off disconnects guests within seconds.
 
-The Excalidraw editor (npm package) supports:
+## What was added
 
-- 💯&nbsp;Free & open-source.
-- 🎨&nbsp;Infinite, canvas-based whiteboard.
-- ✍️&nbsp;Hand-drawn like style.
-- 🌓&nbsp;Dark mode.
-- 🏗️&nbsp;Customizable.
-- 📷&nbsp;Image support.
-- 😀&nbsp;Shape libraries support.
-- 🌐&nbsp;Localization (i18n) support.
-- 🖼️&nbsp;Export to PNG, SVG & clipboard.
-- 💾&nbsp;Open format - export drawings as an `.excalidraw` json file.
-- ⚒️&nbsp;Wide range of tools - rectangle, circle, diamond, arrow, line, free-draw, eraser...
-- ➡️&nbsp;Arrow-binding & labeled arrows.
-- 🔙&nbsp;Undo / Redo.
-- 🔍&nbsp;Zoom and panning support.
+| Path | Purpose |
+| --- | --- |
+| `server/` | Go backend: Google sign-in (OIDC), sessions, scenes, collections, rooms with optimistic concurrency and version history, encrypted file storage, snapshot links, library sync, thumbnails, the WebSocket relay, rate limits, SQLite migrations, background purges, `import-excalidash`, `backup`. |
+| `excalidraw-app/dashboard/` | The dashboard and sign-in screen, styled with Excalidraw's own tokens. |
+| `excalidraw-app/scene/` | Scene mode: route parsing, loading `/s/<id>`, the top-left name and save indicator, the private-scene page, thumbnail rendering. |
+| `excalidraw-app/scene-sidebar/` | The in-editor scenes panel, like Excalidraw+. |
+| `excalidraw-app/share/SceneShareDialog.tsx` | Share dialog for scenes: public link toggle, view/edit, snapshot export. |
+| `excalidraw-app/collab/socket.ts` | WebSocket transport with the subset of the socket.io-client API upstream's collab code uses, so `Collab.tsx` and `Portal.tsx` stay upstream. |
+| `excalidraw-app/data/server.ts` | Room and file persistence against `/api`, replacing `data/firebase.ts` function for function. |
+| `excalidraw-app/data/api.ts`, `auth.ts`, `library.ts` | Typed API client, signed-in user state, server-backed library adapter. |
+| `flake.nix`, `nix/module.nix` | Nix package (yarn offline build + Go, frontend embedded) and a NixOS module (`services.draw`). |
+| `SPEC.md` | The product and API contract everything above is built against. |
+| `scripts/gen-crypto-vectors.mjs`, `scripts/mock-api.mjs` | Test vectors for the encryption formats; an in-memory API for dashboard development. |
 
-## Excalidraw.com
+## What was changed in upstream's app
 
-The app hosted at [excalidraw.com](https://excalidraw.com) is a minimal showcase of what you can build with Excalidraw. Its [source code](https://github.com/excalidraw/excalidraw/tree/master/excalidraw-app) is part of this repository as well, and the app features:
+The intent is that `excalidraw-app/` stays mergeable with upstream. Changes are
+mechanical: swap an import, remove a block, add a branch.
 
-- 📡&nbsp;PWA support (works offline).
-- 🤼&nbsp;Real-time collaboration.
-- 🔒&nbsp;End-to-end encryption.
-- 💾&nbsp;Local-first support (autosaves to the browser).
-- 🔗&nbsp;Shareable links (export to a readonly link you can share with others).
+| File | Change |
+| --- | --- |
+| `App.tsx` | Scene-mode branch in `initializeScene`; `viewModeEnabled` for read-only guests; scene name as the editor `name`; scenes sidebar wrapper; Excalidraw+ promo, iframe export and sidebar upsells removed; "Save to dashboard" replaces the Excalidraw+ cloud export; server library adapter when signed in. |
+| `collab/Collab.tsx`, `collab/Portal.tsx` | Import the transport shim instead of socket.io-client; call `data/server.ts` instead of Firebase; 2 s save throttle in scene mode; read-only clients never save or broadcast; signed-in name as the default collaborator name. |
+| `data/index.ts` | Snapshot links post to `/api/v2/post` and open at `/local#json=…`; files go to `/api/files/shareLinks/…`. |
+| `components/AppMainMenu.tsx`, `AppWelcomeScreen.tsx`, `AppFooter.tsx`, `AI.tsx`, `TopErrorBoundary.tsx` | Excalidraw+ items replaced by Dashboard / Save to dashboard / Sign out; welcome centre card hidden in scene mode; Sentry removed. |
+| `index.tsx`, `index.html` | Routing between dashboard and editor; analytics and Sentry snippets removed; excalidraw.com meta URLs removed. |
+| `app_constants.ts`, `.env.*`, `vite.config.mts`, `vite-env.d.ts` | Storage prefixes and intervals; Firebase and Plus variables removed; dev proxy for `/api`; the service worker never caches `/api`. |
+| `package.json`, `yarn.lock` | `firebase`, `socket.io-client`, `@sentry/browser`, `callsites`, `vite-plugin-sitemap` removed. Nothing added. |
 
-We'll be adding these features as drop-in plugins for the npm package in the future.
+Deleted: `data/firebase.ts`, `sentry.ts`, `ExcalidrawPlusIframeExport.tsx`,
+`ExcalidrawPlusPromoBanner.tsx`, `AppSidebar.tsx` (the comments/presentation
+upsell tabs), `.github/workflows/` (replaced by `.forgejo/workflows/`).
 
-## Quick start
+No keybinding, tool, menu, dialog, gesture or rendering behaviour changed.
+`packages/` has a zero-line diff against upstream.
 
-**Note:** following instructions are for installing the Excalidraw [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw) when integrating Excalidraw into your own app. To run the repository locally for development, please refer to our [Development Guide](https://docs.excalidraw.com/docs/introduction/development).
+## Compatibility with Excalidraw
 
-Use `npm` or `yarn` to install the package.
+- Files: `.excalidraw` files, the library format, clipboard payloads and PNG/SVG
+  exports with embedded scene data are upstream's, byte for byte. Anything you
+  export here opens on excalidraw.com and vice versa.
+- Snapshot links: same `#json=<id>,<key>` scheme and the same encrypted blob
+  format, served by this server instead of json.excalidraw.com.
+- Encryption: rooms and files are encrypted client-side with upstream's
+  AES-GCM key format. The server stores the per-scene key so it can hand it to
+  people you share with, duplicate scenes and import; the wire and disk formats
+  are the upstream ones.
+- Collaboration: the sync algorithm, reconciliation and cursor protocol are
+  upstream's. The transport is this server's WebSocket relay instead of
+  excalidraw-room, so a `#room=` link from excalidraw.com cannot be joined
+  here and the reverse; both sides need the same server, which is true of
+  excalidraw.com itself.
 
-```bash
-npm install react react-dom @excalidraw/excalidraw
-# or
-yarn add react react-dom @excalidraw/excalidraw
+## Staying current with upstream
+
+`upstream` is github.com/excalidraw/excalidraw. Syncing is a merge:
+
+```
+git fetch upstream
+git merge upstream/master
 ```
 
-Check out our [documentation](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/installation) for more details!
+A weekly Forgejo workflow (`.forgejo/workflows/upstream-sync.yml`) does exactly
+that on a branch and opens a pull request; CI builds and tests it. When the
+merge conflicts, the workflow opens an issue instead and the merge is done by
+hand. Because the diff against upstream is confined to `excalidraw-app/` and
+mechanical, conflicts are rare and small.
 
-## Contributing
+Deployments track the `main` branch through the Nix flake; a host that consumes
+the flake picks up merged syncs on its next `nix flake update`.
 
-- Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).
-- Want to contribute? Check out our [contribution guide](https://docs.excalidraw.com/docs/introduction/contributing) or let us know on [Discord](https://discord.gg/UexuTaE).
-- Want to help with translations? See the [translation guide](https://docs.excalidraw.com/docs/introduction/contributing#translating).
+## Running it
 
-## Integrations
+```
+yarn install --frozen-lockfile              # node 24, yarn 1.22 (corepack)
+cd server && DRAW_DEV_LOGIN=1 DRAW_BASE_URL=http://localhost:3001 \
+  DRAW_DATA_DIR=/tmp/draw go run ./cmd/draw serve
+yarn --cwd excalidraw-app start             # vite on :3001, proxies /api
+```
 
-- [VScode extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor)
-- [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw)
+`DRAW_DEV_LOGIN=1` enables a password-less sign-in form for development. Never
+set it in production. `DRAW_BASE_URL` must be the origin the browser uses,
+because the server checks `Origin` on writes and WebSocket upgrades.
 
-## Who's integrating Excalidraw
+Production build and configuration are documented in
+[`server/README.md`](server/README.md). With Nix:
 
-[Google Cloud](https://googlecloudcheatsheet.withgoogle.com/architecture) • [Meta](https://meta.com/) • [CodeSandbox](https://codesandbox.io/) • [Obsidian Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin) • [Replit](https://replit.com/) • [Slite](https://slite.com/) • [Notion](https://notion.so/) • [HackerRank](https://www.hackerrank.com/) • and many others
+```
+nix build .#default                         # single binary, frontend embedded
+```
 
-## Sponsors & support
+and on NixOS:
 
-If you like the project, you can become a sponsor at [Open Collective](https://opencollective.com/excalidraw) or use [Excalidraw+](https://plus.excalidraw.com/).
+```nix
+imports = [ draw.nixosModules.default ];
+services.draw = {
+  enable = true;
+  baseUrl = "https://draw.example.com";
+  environmentFile = "/run/secrets/draw-google-oauth.env";  # OIDC_CLIENT_ID, OIDC_CLIENT_SECRET
+  backup.enable = true;
+};
+```
 
-## Thank you for supporting Excalidraw
+Put a reverse proxy in front of `127.0.0.1:34729` that forwards
+`X-Forwarded-Proto` and the client IP; WebSockets pass through unchanged.
 
-[<img src="https://opencollective.com/excalidraw/tiers/sponsors/0/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/0/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/1/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/1/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/2/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/2/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/3/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/3/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/4/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/4/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/5/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/5/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/6/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/6/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/7/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/7/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/8/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/8/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/9/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/9/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/10/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/10/website)
+## Tests
 
-<a href="https://opencollective.com/excalidraw#category-CONTRIBUTE" target="_blank"><img src="https://opencollective.com/excalidraw/tiers/backers.svg?avatarHeight=32"/></a>
+```
+yarn test:typecheck && yarn test:app        # frontend
+cd server && go vet ./... && go test -race ./...
+```
 
-Last but not least, we're thankful to these companies for offering their services for free:
+## License
 
-[![Vercel](./.github/assets/vercel.svg)](https://vercel.com) [![Sentry](./.github/assets/sentry.svg)](https://sentry.io) [![Crowdin](./.github/assets/crowdin.svg)](https://crowdin.com)
+MIT, as upstream. Excalidraw is a trademark of the Excalidraw team; this is an
+independent self-hosted deployment of their open-source editor.

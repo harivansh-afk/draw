@@ -1,0 +1,72 @@
+name: upstream-sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  merge-upstream:
+    name: Merge excalidraw/excalidraw master
+    runs-on: native
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge upstream and open a PR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "forgejo-actions"
+          git config user.email "actions@noreply.harivan.sh"
+          git remote add upstream https://github.com/excalidraw/excalidraw.git
+          git fetch --no-tags upstream master
+
+          if [ "$(git rev-list --count HEAD..upstream/master)" = "0" ]; then
+            echo "main already contains upstream/master"
+            exit 0
+          fi
+
+          api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+          auth="Authorization: token ${TOKEN}"
+          upstream_sha=$(git rev-parse --short upstream/master)
+
+          git checkout -B upstream-sync
+          if ! git merge --no-edit upstream/master -m "Merge upstream excalidraw master ($upstream_sha)"; then
+            git merge --abort
+            title="upstream-sync: manual merge needed ($upstream_sha)"
+            existing=$(curl -fsS -H "$auth" "$api/issues?state=open&type=issues&q=upstream-sync" |
+              jq -r '.[] | select(.title | startswith("upstream-sync: manual merge needed")) | .number' | head -1)
+            if [ -z "$existing" ]; then
+              jq -n --arg t "$title" --arg b "git merge upstream/master conflicts. Merge by hand: \`git fetch upstream && git merge upstream/master\`, resolve, run \`yarn test:typecheck && yarn test:app\` and \`go test ./...\` in server/, then push." \
+                '{title: $t, body: $b}' |
+                curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d @- "$api/issues" >/dev/null
+            fi
+            echo "merge conflicts; issue opened or already open"
+            exit 0
+          fi
+
+          git push -f origin upstream-sync
+
+          existing=$(curl -fsS -H "$auth" "$api/pulls?state=open" |
+            jq -r '.[] | select(.head.ref == "upstream-sync") | .number' | head -1)
+          if [ -n "$existing" ]; then
+            echo "PR #$existing already open, refreshed by force-push"
+            exit 0
+          fi
+
+          jq -n --arg sha "$upstream_sha" '{
+            title: ("Merge upstream excalidraw master (" + $sha + ")"),
+            head: "upstream-sync",
+            base: "main",
+            body: "Weekly merge of github.com/excalidraw/excalidraw master. CI builds the binary and runs the Go and app tests; open /local and /s/<id> once before merging if the diff touches excalidraw-app."
+          }' | curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d @- "$api/pulls" >/dev/null
