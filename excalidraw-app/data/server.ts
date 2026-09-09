@@ -31,6 +31,8 @@ import type {
   DataURL,
 } from "@excalidraw/excalidraw/types";
 
+import { isSceneReadOnly } from "../scene/sceneMode";
+
 import { api, isApiError } from "./api";
 
 import { getSyncableElements } from ".";
@@ -41,6 +43,16 @@ import type Portal from "../collab/Portal";
 import type { Socket } from "../collab/socket";
 
 const SAVE_RETRIES = 5;
+
+/**
+ * File prefixes are `rooms/<roomId>` or `shareLinks/<jsonId>`. Upstream code
+ * still passes the old Firebase form (`/files/rooms/<id>`), so both are accepted.
+ */
+export const normalizeFilePrefix = (prefix: string) =>
+  prefix
+    .replace(/^\/+/, "")
+    .replace(/^files\//, "")
+    .replace(/\/+$/, "");
 
 const encodeBase64 = (bytes: Uint8Array | ArrayBuffer) =>
   stringToBase64(toByteString(bytes), true);
@@ -98,6 +110,10 @@ export const isSavedToServer = (
   portal: Portal,
   elements: readonly ExcalidrawElement[],
 ): boolean => {
+  // read-only clients have nothing to save, so nothing is ever unsaved
+  if (isSceneReadOnly()) {
+    return true;
+  }
   if (portal.socket && portal.roomId && portal.roomKey) {
     const sceneVersion = getSceneVersion(elements);
 
@@ -121,7 +137,7 @@ export const saveFilesToServer = async ({
   await Promise.all(
     files.map(async ({ id, buffer }) => {
       try {
-        await api.files.put(prefix, id, buffer);
+        await api.files.put(normalizeFilePrefix(prefix), id, buffer);
         savedFiles.push(id);
       } catch (error: any) {
         erroredFiles.push(id);
@@ -240,9 +256,10 @@ export const loadFilesFromServer = async (
   await Promise.all(
     [...new Set(filesIds)].map(async (id) => {
       try {
-        const response = await fetch(api.files.url(prefix, id), {
-          credentials: "same-origin",
-        });
+        const response = await fetch(
+          api.files.url(normalizeFilePrefix(prefix), id),
+          { credentials: "same-origin" },
+        );
         if (response.status < 400) {
           const arrayBuffer = await response.arrayBuffer();
 

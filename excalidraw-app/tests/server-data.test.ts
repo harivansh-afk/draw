@@ -1,7 +1,13 @@
 import { vi } from "vitest";
 
 import { ApiError } from "../data/api";
-import { saveToServer, loadFromServer } from "../data/server";
+import {
+  loadFilesFromServer,
+  normalizeFilePrefix,
+  saveFilesToServer,
+  saveToServer,
+  loadFromServer,
+} from "../data/server";
 
 import type { SyncableExcalidrawElement } from "../data";
 
@@ -177,5 +183,35 @@ describe("loadFromServer", () => {
       vi.fn(async () => jsonResponse(404, { error: "not_found", message: "" })),
     );
     expect(await loadFromServer("room-1", roomKey, null)).toBeNull();
+  });
+});
+
+describe("file prefixes", () => {
+  it("normalizes legacy firebase-style prefixes", () => {
+    expect(normalizeFilePrefix("files/rooms/abc")).toBe("rooms/abc");
+    expect(normalizeFilePrefix("/files/shareLinks/xyz/")).toBe(
+      "shareLinks/xyz",
+    );
+    expect(normalizeFilePrefix("rooms/abc")).toBe("rooms/abc");
+  });
+
+  it("loads and saves files under /api/files/<prefix>/<id>", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        return new Response(null, { status: 404 });
+      }),
+    );
+    await loadFilesFromServer("files/rooms/room-1", roomKey, ["file-a" as any]);
+    await saveFilesToServer({
+      prefix: "/files/rooms/room-1",
+      files: [{ id: "file-b" as any, buffer: new Uint8Array([1]) }],
+    });
+    expect(urls).toEqual([
+      "/api/files/rooms/room-1/file-a",
+      "/api/files/rooms/room-1/file-b",
+    ]);
   });
 });
