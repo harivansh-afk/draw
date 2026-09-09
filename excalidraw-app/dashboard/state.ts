@@ -83,15 +83,6 @@ export const relativeTime = (iso: string, now = Date.now()): string => {
   return plural(Math.floor(diff / YEAR), "year", "a year");
 };
 
-export const initials = (name: string, email: string): string => {
-  const source = name.trim() || email.split("@")[0] || "?";
-  const parts = source.split(/[\s._-]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return source.slice(0, 2).toUpperCase();
-};
-
 export const nextUntitledName = (scenes: readonly SceneMeta[]): string => {
   const taken = new Set(scenes.map((s) => s.name));
   if (!taken.has("Untitled")) {

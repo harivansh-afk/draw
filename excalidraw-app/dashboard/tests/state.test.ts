@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   filterScenes,
-  initials,
   nextUntitledName,
   relativeTime,
   sortScenes,
   stripExcalidrawExtension,
 } from "../state";
+
+import { avatarInitial } from "../../data/auth";
 
 import type { SceneMeta } from "../../data/api";
 
@@ -134,12 +135,6 @@ describe("relativeTime", () => {
 });
 
 describe("naming helpers", () => {
-  it("derives initials from a name or the email", () => {
-    expect(initials("Harivansh Rathi", "x@y.z")).toBe("HR");
-    expect(initials("", "hari@example.com")).toBe("HA");
-    expect(initials("Hari", "")).toBe("HA");
-  });
-
   it("picks the next free Untitled name", () => {
     expect(nextUntitledName([])).toBe("Untitled");
     expect(nextUntitledName([scene({ name: "Untitled" })])).toBe("Untitled 2");
@@ -156,5 +151,14 @@ describe("naming helpers", () => {
     expect(stripExcalidrawExtension("diagram.excalidraw.json")).toBe("diagram");
     expect(stripExcalidrawExtension("plain")).toBe("plain");
     expect(stripExcalidrawExtension(".excalidraw")).toBe("Untitled");
+  });
+});
+
+describe("avatarInitial", () => {
+  it("uses one letter from the name, then the email, then ?", () => {
+    expect(avatarInitial("Harivansh Rathi")).toBe("H");
+    expect(avatarInitial("  hari ", "x@y.z")).toBe("H");
+    expect(avatarInitial("", "hari@example.com")).toBe("H");
+    expect(avatarInitial("", "")).toBe("?");
   });
 });

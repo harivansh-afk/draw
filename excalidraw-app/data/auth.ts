@@ -32,5 +32,9 @@ export const signOut = async () => {
   }
 };
 
+/** Single uppercase initial for avatar fallbacks; falls back to the email. */
+export const avatarInitial = (name: string, email = ""): string =>
+  (name.trim() || email.trim() || "?").charAt(0).toUpperCase();
+
 export const loginUrl = (next: string = window.location.pathname) =>
   `/login?next=${encodeURIComponent(next)}`;
