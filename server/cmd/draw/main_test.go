@@ -49,3 +49,50 @@ func TestBackupFilesFlag(t *testing.T) {
 		})
 	}
 }
+
+func TestImportDirFlags(t *testing.T) {
+	for _, flagsFirst := range []bool{false, true} {
+		t.Run(map[bool]string{false: "directory-first", true: "flags-first"}[flagsFirst], func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "scene.excalidraw"), []byte(`{"elements":[]}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			envDir := filepath.Join(t.TempDir(), "unused")
+			t.Setenv("DRAW_DATA_DIR", envDir)
+			data := t.TempDir()
+			flags := []string{"--owner", "owner@example.com", "--create-owner", "--data-dir", data}
+			log := slog.New(slog.NewTextHandler(io.Discard, nil))
+			for _, dry := range []bool{true, false} {
+				args := append([]string{}, flags...)
+				if dry {
+					args = append(args, "--dry-run")
+				}
+				if flagsFirst {
+					args = append(args, dir)
+				} else {
+					args = append([]string{dir}, args...)
+				}
+				if err := run(append([]string{"import-dir"}, args...), log); err != nil {
+					t.Fatal(err)
+				}
+				s, err := store.Open(data)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var scenes int
+				err = s.DB.QueryRow("SELECT count(*) FROM scenes").Scan(&scenes)
+				s.Close()
+				want := 1
+				if dry {
+					want = 0
+				}
+				if err != nil || scenes != want {
+					t.Fatal(scenes, err)
+				}
+			}
+			if _, err := os.Stat(envDir); !os.IsNotExist(err) {
+				t.Fatal("data-dir did not override environment", err)
+			}
+		})
+	}
+}

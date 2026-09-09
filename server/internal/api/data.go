@@ -157,7 +157,7 @@ func (s *Server) roomVersions(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) fileAccess(r *http.Request, write bool) error {
 	kind, id, file := r.PathValue("kind"), r.PathValue("roomId"), r.PathValue("fileId")
-	if !store.ValidID(file) {
+	if !store.ValidFileID(file) {
 		return bad("Invalid file id")
 	}
 	if kind == "rooms" {
