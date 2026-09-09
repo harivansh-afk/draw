@@ -1,6 +1,5 @@
 import Trans from "@excalidraw/excalidraw/components/Trans";
 import { t } from "@excalidraw/excalidraw/i18n";
-import * as Sentry from "@sentry/browser";
 import React from "react";
 
 interface TopErrorBoundaryState {
@@ -33,16 +32,13 @@ export class TopErrorBoundary extends React.Component<
       }
     }
 
-    Sentry.withScope((scope) => {
-      scope.setExtras(errorInfo);
-      const eventId = Sentry.captureException(error);
+    console.error(error, errorInfo);
 
-      this.setState((state) => ({
-        hasError: true,
-        sentryEventId: eventId,
-        localStorage: JSON.stringify(_localStorage),
-      }));
-    });
+    this.setState((state) => ({
+      hasError: true,
+      sentryEventId: "",
+      localStorage: JSON.stringify(_localStorage),
+    }));
   }
 
   private selectTextArea(event: React.MouseEvent<HTMLTextAreaElement>) {
@@ -114,11 +110,6 @@ export class TopErrorBoundary extends React.Component<
             </div>
           </div>
           <div>
-            <div className="ErrorSplash-paragraph">
-              {t("errorSplash.trackedToSentry", {
-                eventId: this.state.sentryEventId,
-              })}
-            </div>
             <div className="ErrorSplash-paragraph">
               <Trans
                 i18nKey="errorSplash.openIssueMessage"

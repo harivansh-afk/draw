@@ -56,10 +56,11 @@ import { appJotaiStore, atom } from "../app-jotai";
 import {
   CURSOR_SYNC_TIMEOUT,
   FILE_UPLOAD_MAX_BYTES,
-  FIREBASE_STORAGE_PREFIXES,
+  FILE_STORAGE_PREFIXES,
   INITIAL_SCENE_UPDATE_TIMEOUT,
   LOAD_IMAGES_TIMEOUT,
   WS_SUBTYPES,
+  SAVE_TO_SERVER_INTERVAL_MS,
   SYNC_FULL_SCENE_INTERVAL_MS,
   WS_EVENTS,
 } from "../app_constants";
@@ -76,17 +77,19 @@ import {
 import { FileStatusStore } from "../data/fileStatusStore";
 import { LocalData } from "../data/LocalData";
 import {
-  isSavedToFirebase,
-  loadFilesFromFirebase,
-  loadFromFirebase,
-  saveFilesToFirebase,
-  saveToFirebase,
-} from "../data/firebase";
+  isSavedToServer,
+  loadFilesFromServer,
+  loadFromServer,
+  saveFilesToServer,
+  saveToServer,
+} from "../data/server";
 import {
   importUsernameFromLocalStorage,
   saveUsernameToLocalStorage,
 } from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
+import { isSceneMode, isSceneReadOnly, setSaveState } from "../scene/sceneMode";
+import { queueThumbnailUpload } from "../scene/thumbnail";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
 import Portal from "./Portal";
@@ -126,6 +129,7 @@ export interface CollabAPI {
   getActiveRoomLink: CollabInstance["getActiveRoomLink"];
   setCollabError: CollabInstance["setErrorDialog"];
   setUserToFollow: CollabInstance["setUserToFollow"];
+  saveNow: CollabInstance["saveNow"];
 }
 
 interface CollabProps {
@@ -162,7 +166,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           throw new AbortError();
         }
 
-        return loadFilesFromFirebase(`files/rooms/${roomId}`, roomKey, fileIds);
+        return loadFilesFromServer(`files/rooms/${roomId}`, roomKey, fileIds);
       },
       saveFiles: async ({ addedFiles }) => {
         const { roomId, roomKey } = this.portal;
@@ -170,8 +174,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           throw new AbortError();
         }
 
-        const { savedFiles, erroredFiles } = await saveFilesToFirebase({
-          prefix: `${FIREBASE_STORAGE_PREFIXES.collabFiles}/${roomId}`,
+        const { savedFiles, erroredFiles } = await saveFilesToServer({
+          prefix: `${FILE_STORAGE_PREFIXES.collabFiles}/${roomId}`,
           files: await encodeFilesForUpload({
             files: addedFiles,
             encryptionKey: roomKey,
@@ -246,6 +250,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       getActiveRoomLink: this.getActiveRoomLink,
       setCollabError: this.setErrorDialog,
       setUserToFollow: this.setUserToFollow,
+      saveNow: this.saveNow,
     };
 
     appJotaiStore.set(collabAPIAtom, collabAPI);
@@ -263,6 +268,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   onOfflineStatusToggle = () => {
     appJotaiStore.set(isOfflineAtom, !window.navigator.onLine);
+    if (!window.navigator.onLine) {
+      setSaveState("offline");
+    }
   };
 
   componentWillUnmount() {
@@ -304,7 +312,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     if (
       this.isCollaborating() &&
       (this.fileManager.shouldPreventUnload(syncableElements) ||
-        !isSavedToFirebase(this.portal, syncableElements))
+        !isSavedToServer(this.portal, syncableElements))
     ) {
       // this won't run in time if user decides to leave the site, but
       //  the purpose is to run in immediately after user decides to stay
@@ -324,8 +332,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     syncableElements: readonly SyncableExcalidrawElement[],
   ) => {
     syncableElements = cloneJSON(syncableElements);
+    const isScene = isSceneMode();
     try {
-      const storedElements = await saveToFirebase(
+      if (isScene && !isSavedToServer(this.portal, syncableElements)) {
+        setSaveState("saving");
+      }
+      const storedElements = await saveToServer(
         this.portal,
         syncableElements,
         this.excalidrawAPI.getAppState(),
@@ -336,7 +348,17 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       if (this.isCollaborating() && storedElements) {
         this.handleRemoteSceneUpdate(this._reconcileElements(storedElements));
       }
+
+      if (isScene) {
+        setSaveState("saved");
+        if (storedElements && !isSceneReadOnly()) {
+          queueThumbnailUpload(this.excalidrawAPI);
+        }
+      }
     } catch (error: any) {
+      if (isScene) {
+        setSaveState(window.navigator.onLine ? "error" : "offline");
+      }
       const errorMessage = /is longer than.*?bytes/.test(error.message)
         ? t("errors.collabSaveFailed_sizeExceeded")
         : t("errors.collabSaveFailed");
@@ -360,6 +382,19 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
       console.error(error);
     }
+  };
+
+  /** Flushes any pending save and waits for it; used before leaving a scene. */
+  saveNow = async () => {
+    this.queueSaveToFirebase.cancel();
+    if (!this.portal.socketInitialized || isSceneReadOnly()) {
+      return;
+    }
+    await this.saveCollabRoomToFirebase(
+      getSyncableElements(
+        this.excalidrawAPI.getSceneElementsIncludingDeleted(),
+      ),
+    );
   };
 
   stopCollaboration = (keepRemoteState = true) => {
@@ -515,9 +550,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.setIsCollaborating(true);
     LocalData.pauseSave("collaboration");
 
-    const { default: socketIOClient } = await import(
-      /* webpackChunkName: "socketIoClient" */ "socket.io-client"
-    );
+    const { default: socketIOClient } = await import("./socket");
 
     const fallbackInitializationHandler = () => {
       this.initializeRoom({
@@ -531,9 +564,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
     try {
       this.portal.socket = this.portal.open(
-        socketIOClient(import.meta.env.VITE_APP_WS_SERVER_URL, {
-          transports: ["websocket", "polling"],
-        }),
+        socketIOClient(import.meta.env.VITE_APP_WS_SERVER_URL),
         roomId,
         roomKey,
       );
@@ -704,6 +735,17 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       },
     );
 
+    this.portal.socket.on("error", (code: string) => {
+      if (code === "forbidden") {
+        this.setErrorDialog(
+          "You no longer have access to this scene. Changes will not be saved.",
+        );
+        if (isSceneMode()) {
+          setSaveState("error");
+        }
+      }
+    });
+
     this.initializeIdleDetector();
 
     this.setActiveRoomLink(window.location.href);
@@ -731,7 +773,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.excalidrawAPI.resetScene();
 
       try {
-        const elements = await loadFromFirebase(
+        const elements = await loadFromServer(
           roomLinkData.roomId,
           roomLinkData.roomKey,
           this.portal.socket,
@@ -997,7 +1039,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         );
       }
     },
-    SYNC_FULL_SCENE_INTERVAL_MS,
+    isSceneMode() ? SAVE_TO_SERVER_INTERVAL_MS : SYNC_FULL_SCENE_INTERVAL_MS,
     { leading: false },
   );
 
