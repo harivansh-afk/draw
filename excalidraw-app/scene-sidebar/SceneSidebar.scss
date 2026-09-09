@@ -254,13 +254,6 @@ html.dark .scene-sidebar {
   flex-direction: row;
   height: 100%;
   width: 100%;
-
-  .excalidraw-app__editor {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 100%;
-    position: relative;
-  }
 }
 
 @media (max-width: 799px) {

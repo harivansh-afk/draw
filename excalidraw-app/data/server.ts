@@ -7,7 +7,6 @@
 import { reconcileElements } from "@excalidraw/excalidraw";
 import { MIME_TYPES, toBrandedType } from "@excalidraw/common";
 import {
-  base64ToArrayBuffer,
   decompressData,
   stringToBase64,
   toByteString,
@@ -46,6 +45,17 @@ const SAVE_RETRIES = 5;
 const encodeBase64 = (bytes: Uint8Array | ArrayBuffer) =>
   stringToBase64(toByteString(bytes), true);
 
+// upstream's base64ToArrayBuffer returns Node's pooled buffer under vitest;
+// decode by hand so the exact byte length is preserved everywhere
+const decodeBase64 = (base64: string): Uint8Array<ArrayBuffer> => {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};
+
 const encryptElements = async (
   key: string,
   elements: readonly ExcalidrawElement[],
@@ -64,8 +74,8 @@ const decryptElements = async (
   roomKey: string,
 ): Promise<readonly ExcalidrawElement[]> => {
   const decrypted = await decryptData(
-    new Uint8Array(base64ToArrayBuffer(payload.iv)),
-    base64ToArrayBuffer(payload.ciphertext),
+    decodeBase64(payload.iv),
+    decodeBase64(payload.ciphertext),
     roomKey,
   );
   return JSON.parse(new TextDecoder("utf-8").decode(new Uint8Array(decrypted)));
