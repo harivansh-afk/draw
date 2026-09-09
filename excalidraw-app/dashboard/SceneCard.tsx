@@ -38,6 +38,7 @@ export const SceneCard = ({
   inTrash,
   actions,
   now,
+  thumbVersion,
   renaming,
   onRenameStart,
   onRenameEnd,
@@ -47,6 +48,8 @@ export const SceneCard = ({
   inTrash: boolean;
   actions: SceneActions;
   now: number;
+  /** cache buster for a thumbnail generated after the list was loaded */
+  thumbVersion?: string;
   renaming: boolean;
   onRenameStart: () => void;
   onRenameEnd: () => void;
@@ -58,7 +61,7 @@ export const SceneCard = ({
 
   useEffect(() => {
     setThumbFailed(false);
-  }, [scene.updatedAt, scene.hasThumbnail]);
+  }, [scene.updatedAt, scene.hasThumbnail, thumbVersion]);
 
   const items: MenuItem[] = inTrash
     ? [
@@ -130,7 +133,10 @@ export const SceneCard = ({
         <div className="dash-card__thumb">
           {showThumb ? (
             <img
-              src={api.scenes.thumbnailUrl(scene.id, scene.updatedAt)}
+              src={api.scenes.thumbnailUrl(
+                scene.id,
+                thumbVersion ?? scene.updatedAt,
+              )}
               alt=""
               loading="lazy"
               decoding="async"

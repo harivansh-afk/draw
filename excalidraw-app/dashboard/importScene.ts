@@ -8,6 +8,7 @@ import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { FILE_UPLOAD_MAX_BYTES } from "../app_constants";
 import { api } from "../data/api";
 import { encodeFilesForUpload } from "../data/FileManager";
+import { renderSceneThumbnail } from "../scene/thumbnail";
 
 import { stripExcalidrawExtension } from "./state";
 
@@ -80,5 +81,21 @@ export const importSceneFile = async (
       ),
     );
   }
-  return access.scene;
+
+  // the card should never be blank; a failed render is not a failed import
+  let hasThumbnail = false;
+  try {
+    const blob = await renderSceneThumbnail({
+      elements,
+      appState: data.appState,
+      files: data.files,
+    });
+    if (blob) {
+      await api.scenes.putThumbnail(id, blob);
+      hasThumbnail = true;
+    }
+  } catch (error: any) {
+    console.warn("import thumbnail failed", error);
+  }
+  return { ...access.scene, hasThumbnail };
 };

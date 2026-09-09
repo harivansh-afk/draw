@@ -23,11 +23,13 @@ import { editorPath, navigate } from "./router";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { Sidebar } from "./Sidebar";
 import { filterScenes, nextUntitledName, sortScenes } from "./state";
+import { createBackfill, generateThumbnail } from "./thumbnails";
 import { Button, errorMessage, useToast } from "./ui";
 
 import type { Collection, SceneMeta, User } from "../data/api";
 import type { DashboardRoute } from "./router";
 import type { SceneActions } from "./SceneCard";
+import type { Backfill } from "./thumbnails";
 import type { SortKey } from "./state";
 import type { ThemePreference } from "./theme";
 
@@ -81,6 +83,9 @@ export const Dashboard = ({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [thumbVersions, setThumbVersions] = useState<Record<string, string>>(
+    {},
+  );
   const dragDepth = useRef(0);
 
   useEffect(() => {
@@ -150,6 +155,46 @@ export const Dashboard = ({
   const currentCollection = collectionId
     ? collections.find((c) => c.id === collectionId) ?? null
     : null;
+
+  // cards without a thumbnail (imports, scenes saved before thumbnails
+  // existed) get one rendered from the persisted room, a couple at a time.
+  // The scheduler lives in an effect so StrictMode's mount/unmount/mount
+  // cycle cannot leave a stopped instance behind.
+  const backfillRef = useRef<Backfill | null>(null);
+  useEffect(() => {
+    const backfill = createBackfill({
+      generate: generateThumbnail,
+      onDone: (id, result) => {
+        if (result !== "uploaded") {
+          return;
+        }
+        const version = String(Date.now());
+        setThumbVersions((current) => ({ ...current, [id]: version }));
+        setScenes((current) =>
+          current
+            ? current.map((scene) =>
+                scene.id === id ? { ...scene, hasThumbnail: true } : scene,
+              )
+            : current,
+        );
+      },
+    });
+    backfillRef.current = backfill;
+    return () => {
+      backfill.stop();
+      backfillRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (inTrash || !visibleScenes) {
+      return;
+    }
+    backfillRef.current?.sync(
+      visibleScenes
+        .filter((scene) => !scene.hasThumbnail)
+        .map((scene) => scene.id),
+    );
+  }, [inTrash, visibleScenes]);
 
   const searching = query.trim().length > 0;
 
@@ -436,6 +481,7 @@ export const Dashboard = ({
                 inTrash={inTrash}
                 actions={actions}
                 now={now}
+                thumbVersion={thumbVersions[scene.id]}
                 renaming={renamingId === scene.id}
                 onRenameStart={() => setRenamingId(scene.id)}
                 onRenameEnd={() => setRenamingId(null)}
