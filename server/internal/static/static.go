@@ -2,10 +2,16 @@ package static
 
 import (
 	"io/fs"
+	"mime"
 	"net/http"
 	"path"
 	"strings"
 )
+
+func init() {
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
 
 func Handler(files fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(files))

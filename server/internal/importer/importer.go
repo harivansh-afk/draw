@@ -26,9 +26,13 @@ type Options struct {
 	DB, Uploads, Owner  string
 	DryRun, CreateOwner bool
 }
+
 type record map[string]any
 
-func norm(s string) string { return strings.ToLower(strings.ReplaceAll(s, "_", "")) }
+func norm(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, "_", ""))
+}
+
 func (r record) get(keys ...string) any {
 	for _, k := range keys {
 		if v, ok := r[norm(k)]; ok && v != nil {
@@ -37,6 +41,7 @@ func (r record) get(keys ...string) any {
 	}
 	return nil
 }
+
 func str(v any) string {
 	switch v := v.(type) {
 	case nil:
@@ -49,7 +54,11 @@ func str(v any) string {
 		return fmt.Sprint(v)
 	}
 }
-func quote(s string) string { return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\"" }
+
+func quote(s string) string {
+	return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
+}
+
 func table(db *sql.DB, name string, out io.Writer) ([]record, error) {
 	var actual, schema string
 	err := db.QueryRow("SELECT name,sql FROM sqlite_master WHERE type='table' AND lower(name)=lower(?)", name).Scan(&actual, &schema)
@@ -84,6 +93,7 @@ func table(db *sql.DB, name string, out io.Writer) ([]record, error) {
 	}
 	return result, rows.Err()
 }
+
 func timestamp(v any, fallback string) (string, error) {
 	if v == nil || str(v) == "" {
 		return fallback, nil
@@ -244,6 +254,7 @@ func prepare(row record, collections map[string]string, fileRows []record, uploa
 	}
 	return d, nil
 }
+
 func readUpload(root, drawingID, id, ref, mime string) ([]byte, error) {
 	if root == "" {
 		return nil, errors.New("uploads directory is required")
@@ -297,6 +308,7 @@ func readUpload(root, drawingID, id, ref, mime string) ([]byte, error) {
 	}
 	return nil, fmt.Errorf("upload not found for %s", id)
 }
+
 func Run(s *store.Store, o Options, out io.Writer) error {
 	owner := strings.ToLower(strings.TrimSpace(o.Owner))
 	email, err := mail.ParseAddress(owner)
@@ -334,6 +346,8 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 		}
 		collections[id] = name
 	}
+	s.Mutation.Lock()
+	defer s.Mutation.Unlock()
 	var uid string
 	err = s.DB.QueryRow("SELECT id FROM users WHERE email=?", owner).Scan(&uid)
 	missing := errors.Is(err, sql.ErrNoRows)
@@ -344,7 +358,16 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 		return errors.New("owner must sign in first or use --create-owner")
 	}
 	plans := []drawing{}
+	skipped := 0
 	for _, row := range drawings {
+		var exists bool
+		if err := s.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM imports WHERE source_id=?)", str(row.get("id", "drawingId"))).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			skipped++
+			continue
+		}
 		d, err := prepare(row, collections, fileRows, o.Uploads)
 		if err != nil {
 			return fmt.Errorf("drawing %s: %w", str(row.get("id")), err)
@@ -353,11 +376,9 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 		plans = append(plans, d)
 	}
 	if o.DryRun {
-		fmt.Fprintf(out, "Dry run: %d scenes; createOwner=%t\n", len(plans), missing)
+		fmt.Fprintf(out, "Dry run: %d scenes; skipped %d; createOwner=%t\n", len(plans), skipped, missing)
 		return nil
 	}
-	s.Mutation.Lock()
-	defer s.Mutation.Unlock()
 	tx, err := s.DB.Begin()
 	if err != nil {
 		return err
@@ -380,6 +401,14 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 	}()
 	byName := map[string]string{}
 	for _, d := range plans {
+		var exists bool
+		if err := tx.QueryRow("SELECT EXISTS(SELECT 1 FROM imports WHERE source_id=?)", d.oldID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			skipped++
+			continue
+		}
 		var collection any
 		if d.collection != "" {
 			cid := byName[d.collection]
@@ -398,6 +427,9 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 		}
 		id, key := crypt.ID(), crypt.Key()
 		newIDs = append(newIDs, id)
+		if _, err = tx.Exec("INSERT INTO imports(source_id,scene_id,imported_at) VALUES(?,?,?)", d.oldID, id, store.Now()); err != nil {
+			return err
+		}
 		if _, err = tx.Exec("INSERT INTO scenes(id,owner_id,name,collection_id,room_key,share_mode,created_at,updated_at) VALUES(?,?,?,?,?,'private',?,?)", id, uid, d.name, collection, key, d.created, d.updated); err != nil {
 			return err
 		}
@@ -430,6 +462,6 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 		return err
 	}
 	committed = true
-	fmt.Fprintf(out, "Imported %d scenes\n", len(plans))
+	fmt.Fprintf(out, "Imported %d scenes; skipped %d\n", len(newIDs), skipped)
 	return nil
 }

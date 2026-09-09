@@ -173,7 +173,7 @@ Single binary `draw`, frontend embedded via `embed.FS` from `server/web/dist`
 ```
 draw serve                          # default
 draw import-excalidash --db dev.db --uploads DIR --owner EMAIL [--dry-run]
-draw backup OUT.sqlite              # VACUUM INTO, consistent snapshot
+draw backup OUT.sqlite [--files DIR] # VACUUM INTO; optional files/ and thumbs/ copy
 ```
 
 ### Configuration (environment; flags of the same name without prefix override)
@@ -189,7 +189,7 @@ draw backup OUT.sqlite              # VACUUM INTO, consistent snapshot
 | `DRAW_ALLOWED_EMAILS` | empty | Comma-separated allowlist. Empty means: the first account that ever signs in is recorded and becomes the only allowed account. |
 | `DRAW_OPEN_SIGNUP` | `0` | `1` lets any verified account sign in (overrides the rule above) |
 | `DRAW_DEV_LOGIN` | `0` | `1` enables `POST /api/auth/dev` and disables the OIDC requirement. Never set in production. |
-| `DRAW_TRUST_PROXY` | `0` | `1` reads the client IP from `X-Forwarded-For` (first hop) for logs and rate limits |
+| `DRAW_TRUST_PROXY` | `0` | `1` prefers `CF-Connecting-IP`, else the rightmost valid `X-Forwarded-For` IP after stripping loopback/private hops, for logs and rate limits |
 | `DRAW_SESSION_KEY_FILE` | `DATA_DIR/session.key` | 32 random bytes, created with mode 0600 if missing |
 | `DRAW_MAX_ROOM_BYTES` | `8388608` | Room payload cap (8 MiB) |
 | `DRAW_MAX_FILE_BYTES` | `6291456` | Per-file cap (upstream caps the dataURL at 4 MiB before encoding) |
@@ -200,10 +200,12 @@ draw backup OUT.sqlite              # VACUUM INTO, consistent snapshot
 
 - Cookie `draw_session`: 32-byte random token, HttpOnly, SameSite=Lax, Path=/,
   Secure when `DRAW_BASE_URL` is https, 30-day sliding expiry. The token's
-  SHA-256 is stored in `sessions`.
+  SHA-256 is stored in `sessions`. Expiry and the cookie refresh only when
+  `last_seen_at` is older than one hour.
 - OIDC: standard code flow with `state` and `nonce` in a short-lived cookie,
   scopes `openid email profile`, `email_verified` must be true. Users are keyed
   by `issuer + sub`; email, name and avatar URL are refreshed on each login.
+  An email held by a different subject is rejected with `not_allowed`.
 - Allowlist: see config. Rejected sign-ins redirect to `/login?error=not_allowed`.
 - State-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`) must carry either
   `Sec-Fetch-Site: same-origin`/`none` or an `Origin` equal to `DRAW_BASE_URL`;
@@ -223,6 +225,8 @@ For an ad-hoc room (no scene with that id):
 - write: any signed-in user, or anyone if the room already exists (so
   anonymous invitees of a `/local` session can keep saving)
 - create: signed-in users only
+- websocket broadcast: anyone, even before the first room save; the room key
+  protects content
 
 `write` means `owner` or `edit`; `read` means `write` or `view`.
 
@@ -245,7 +249,7 @@ Auth
 - `GET  /api/auth/config` → `{ devLogin: bool, provider: "Google" }`
 - `GET  /api/auth/me` → `{ user }` or 401
 - `GET  /api/auth/oidc/start?next=/path` → 302 to the provider (`next` must be a
-  same-origin path, else `/`)
+  same-origin path, else `/`; fragments are stripped before storage)
 - `GET  /api/auth/oidc/callback` → sets the cookie, 302 to `next`
 - `POST /api/auth/logout` → clears the cookie, 204
 - `POST /api/auth/dev {email, name?}` → dev only; creates/logs in; 204
@@ -262,7 +266,7 @@ Scenes (signed in)
 - `PATCH /api/scenes/:id {name?, collectionId?, shareMode?}` → `SceneMeta`, owner only
 - `DELETE /api/scenes/:id` → moves to trash, 204. `?permanent=1` (owner only,
   scene must be in trash or not) deletes the scene, its room, room history,
-  files and thumbnail.
+  files and thumbnail, and closes live room members with 4403.
 - `POST /api/scenes/:id/restore` → `SceneMeta`
 - `POST /api/scenes/:id/duplicate {name?}` → 201 `SceneAccess`. Copies the room
   (decrypt with the old key, encrypt with the new one; same for each file's
@@ -298,14 +302,15 @@ Rooms (permissions above)
 Files
 - `PUT /api/files/rooms/:roomId/:fileId` raw bytes ≤ `DRAW_MAX_FILE_BYTES`, room write permission → 204 (idempotent; same id overwrites)
 - `GET /api/files/rooms/:roomId/:fileId` → bytes, room read permission, `Cache-Control: private, max-age=31536000, immutable`
-- `PUT /api/files/shareLinks/:jsonId/:fileId` → 204 if the snapshot `jsonId` exists, else 404
+- `PUT /api/files/shareLinks/:jsonId/:fileId` → 204 if the snapshot `jsonId` exists, else 404; existing files are immutable (a repeated PUT keeps the first bytes)
 - `GET /api/files/shareLinks/:jsonId/:fileId` → bytes, `Cache-Control: public, max-age=31536000, immutable`
 File ids are validated as `[A-Za-z0-9_-]{1,64}`; room and snapshot ids as `[a-f0-9]{20}` (upstream also accepts `[a-zA-Z0-9_-]+` for legacy rooms; accept `[A-Za-z0-9_-]{1,64}` for rooms).
 
 Snapshot links (upstream json backend contract)
 - `POST /api/v2/post` raw body ≤ `DRAW_MAX_ROOM_BYTES` → `{ id }` (20 hex). Signed
   in, or anonymous with `read` on any scene is not knowable here, so: anyone,
-  rate limited to 30/hour/IP.
+  rate limited to 30/hour/IP. A 413 includes `error: "too_large"` and
+  `error_class: "RequestTooLargeError"` for the upstream export client.
 - `GET /api/v2/:id` → raw bytes, `Cache-Control: public, max-age=31536000, immutable`
 
 Health
@@ -362,13 +367,16 @@ goes to the whole room on join and to the remaining members on leave; follow
 rooms are named `follow@<socketId>`; a socket may be in one data room at a time
 (a second `join-room` leaves the first). Volatile broadcasts may be dropped
 when a receiver's send queue exceeds 64 messages; regular broadcasts are never
-dropped (slow receivers are disconnected instead). Server pings every 25 s and
+dropped (slow receivers are disconnected instead). Queues are bounded to 128
+frames and 16 MiB per receiver, including any in-flight write. Broadcast recipients
+share one immutable encoded frame. Server pings every 25 s and
 drops connections silent for 60 s. Message cap 1 MiB per frame for volatile,
 `DRAW_MAX_ROOM_BYTES` otherwise.
 
 Write permission for `server-broadcast` is evaluated once at `join-room` and
 re-evaluated every 30 s (so revoking a share kicks editors within 30 s: the
-server sends `error ["forbidden"]` and closes 4403).
+server sends `error ["forbidden"]` and closes 4403). Permanent deletion and
+trash purging immediately evict room members with 4403.
 
 ### Client transport shim (`excalidraw-app/collab/socket.ts`)
 
@@ -403,6 +411,7 @@ room_versions    room_id, rev, scene_version, iv, ciphertext, created_at   PK(ro
 snapshots        id TEXT PK, data BLOB, created_at, ip
 libraries        user_id TEXT PK, data BLOB (JSON), updated_at
 settings         key TEXT PK, value TEXT     -- e.g. first_user_email
+imports          source_id TEXT PK, scene_id TEXT, imported_at TEXT -- ExcaliDash ids
 ```
 
 Files on disk: `DATA_DIR/files/rooms/<roomId>/<fileId>`,
@@ -411,7 +420,9 @@ Files on disk: `DATA_DIR/files/rooms/<roomId>/<fileId>`,
 
 Background jobs (in-process tickers): purge trashed scenes older than
 `DRAW_TRASH_RETENTION_DAYS`; delete expired sessions; delete ad-hoc rooms and
-their files untouched for 90 days; delete snapshots older than 365 days.
+their files untouched for 90 days; sweep orphan `files/rooms/<id>` directories
+with neither a scene nor room row when every mtime in the directory is older
+than 90 days; delete snapshots older than 365 days.
 
 ### Formats the server must understand
 
@@ -431,7 +442,9 @@ outer ciphertext with the new key and a fresh IV; the envelope is rebuilt.
 
 ### `import-excalidash`
 
-Reads an ExcaliDash Prisma SQLite database and uploads directory. For each
+Reads an ExcaliDash Prisma SQLite database and uploads directory. Source drawing
+ids are recorded transactionally in `imports`; repeat runs skip them and report
+skipped counts, even after the destination scene is deleted. For each new
 drawing: create a scene owned by `--owner` (the user must already exist unless
 `--create-owner` is given), named after the drawing, in a collection of the same
 name as the drawing's collection (created on demand), with `createdAt`/`updatedAt`
@@ -483,7 +496,12 @@ generated by `scripts/gen-crypto-vectors.mjs`).
   dotenv with the Google client id and secret, `DRAW_BASE_URL=https://draw.harivan.sh`,
   `DRAW_TRUST_PROXY=1`, Caddy vhost `draw.harivan.sh` → `127.0.0.1:34729`
   (websockets pass through `reverse_proxy` unchanged), nightly `draw backup`
-  timer to `/var/backup/draw` with 14-day retention. The ExcaliDash containers
+  timer to `/var/backup/draw` with 14-day retention, using `--files DIR` for
+  files and thumbnails. The output database and media directory must be new.
+  Media uses hard links with a copy fallback across filesystems; source writes
+  replace inodes, preserving linked backups. The database and media are separate
+  snapshots: quiesce writes for a matching full restore point. Back up `session.key`
+  separately. The ExcaliDash containers
   are removed and its data directory kept until the import has run.
 
 ## Acceptance (end to end, in a real browser)

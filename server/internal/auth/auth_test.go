@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -8,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -75,7 +77,13 @@ func TestOIDCFlow(t *testing.T) {
 	}
 	start := func() (*http.Cookie, string) {
 		rr := httptest.NewRecorder()
-		a.Start(rr, httptest.NewRequest("GET", "/api/auth/oidc/start?next=/s/123", nil))
+		a.Start(rr, httptest.NewRequest("GET", "/api/auth/oidc/start?next="+url.QueryEscape("/s/123#room=id,secret-key"), nil))
+		flowCookie := rr.Result().Cookies()[0]
+		encoded := strings.Split(flowCookie.Value, ".")[0]
+		data, err := base64.RawURLEncoding.DecodeString(encoded)
+		if err != nil || bytes.Contains(data, []byte("secret-key")) || bytes.Contains(data, []byte("#room")) {
+			t.Fatalf("fragment persisted: %s, %v", data, err)
+		}
 		if rr.Code != 302 {
 			t.Fatal(rr.Code)
 		}
@@ -118,6 +126,31 @@ func TestOIDCFlow(t *testing.T) {
 	if err != nil || user.Email != "owner@example.com" {
 		t.Fatal(user, err)
 	}
+	// The original subject changes email, which is then claimed by another subject.
+	a.Config.OpenSignup = true
+	if _, err = a.Login(issuer, "subject", "new@example.com", "Owner", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = a.Login(issuer, "other-subject", "owner@example.com", "Other", ""); err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
+	cookie, state = start()
+	if rr = callback(cookie, state); rr.Header().Get("Location") != "/login?error=not_allowed" {
+		t.Fatal(rr.Header())
+	}
+	if !strings.Contains(logs.String(), "email belongs to a different subject") {
+		t.Fatal("missing collision reason")
+	}
+	var retained string
+	if err = s.DB.QueryRow("SELECT email FROM users WHERE id=?", user.ID).Scan(&retained); err != nil || retained != "new@example.com" {
+		t.Fatal("subject identity changed", retained, err)
+	}
 	cookie, state = start()
 	if rr = callback(cookie, state+"wrong"); rr.Header().Get("Location") != "/login?error=oidc" {
 		t.Fatal(rr.Header())
@@ -142,6 +175,7 @@ func TestOIDCFlow(t *testing.T) {
 		t.Fatal(info, err)
 	}
 }
+
 func TestFirstUserAndAllowlist(t *testing.T) {
 	c, err := config.Load(nil)
 	if err != nil {
@@ -165,7 +199,11 @@ func TestFirstUserAndAllowlist(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, email := range []string{"a@example.com", "b@example.com"} {
 		wg.Add(1)
-		go func() { defer wg.Done(); _, err := a.Login("issuer", email, email, email, ""); results <- err }()
+		go func() {
+			defer wg.Done()
+			_, err := a.Login("issuer", email, email, email, "")
+			results <- err
+		}()
 	}
 	wg.Wait()
 	close(results)
@@ -201,13 +239,14 @@ func TestFirstUserAndAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
 func TestSafeNextCSRF(t *testing.T) {
 	for _, s := range []string{"https://evil.example", "//evil.example", "/\\evil.example", "javascript:bad", "/\r\nevil"} {
 		if SafeNext(s) != "/" {
 			t.Fatal(s)
 		}
 	}
-	if SafeNext("/local#room=test") != "/local#room=test" {
+	if SafeNext("/local#room=test") != "/local" {
 		t.Fatal("valid path rejected")
 	}
 	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE"} {

@@ -39,6 +39,7 @@ func (s *Server) listCollections(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, map[string]any{"collections": collections})
 	return nil
 }
+
 func (s *Server) collection(r *http.Request) (Collection, error) {
 	uid, err := requireUser(r)
 	if err != nil {
@@ -48,6 +49,7 @@ func (s *Server) collection(r *http.Request) (Collection, error) {
 	err = s.Store.DB.QueryRow(collectionQuery+" WHERE c.id=? AND c.owner_id=?", r.PathValue("id"), uid).Scan(&c.ID, &c.Name, &c.CreatedAt, &c.SceneCount)
 	return c, err
 }
+
 func collectionName(w http.ResponseWriter, r *http.Request) (string, error) {
 	var v struct{ Name string }
 	if err := decode(w, r, &v, 16384); err != nil {
@@ -58,6 +60,7 @@ func collectionName(w http.ResponseWriter, r *http.Request) (string, error) {
 	}
 	return v.Name, nil
 }
+
 func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) error {
 	uid, err := requireUser(r)
 	if err != nil {
@@ -75,6 +78,7 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) error 
 	JSON(w, 201, c)
 	return nil
 }
+
 func (s *Server) patchCollection(w http.ResponseWriter, r *http.Request) error {
 	s.Store.Mutation.Lock()
 	defer s.Store.Mutation.Unlock()
@@ -92,6 +96,7 @@ func (s *Server) patchCollection(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, c)
 	return nil
 }
+
 func (s *Server) deleteCollection(w http.ResponseWriter, r *http.Request) error {
 	s.Store.Mutation.Lock()
 	defer s.Store.Mutation.Unlock()

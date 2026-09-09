@@ -61,7 +61,14 @@ func TestWebCryptoVectors(t *testing.T) {
 		})
 	}
 }
-func compact(j []byte) []byte { var b bytes.Buffer; _ = json.Compact(&b, j); return b.Bytes() }
+
+func compact(j []byte) []byte {
+
+	var b bytes.Buffer
+	_ = json.Compact(&b, j)
+	return b.Bytes()
+}
+
 func TestMalformed(t *testing.T) {
 	for _, b := range [][]byte{nil, {0, 0, 0, 2}, {0, 0, 0, 1, 255, 255, 255, 255}, {0, 0, 0, 1, 0, 0, 0, 0}} {
 		if _, _, err := Decompress(Key(), b); err == nil {

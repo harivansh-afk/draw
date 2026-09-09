@@ -12,13 +12,16 @@ import (
 	"git.harivan.sh/harivansh-afk/draw/server/internal/store"
 )
 
-func access(scene store.Scene, p string) any {
-	return struct {
-		Scene      store.Scene `json:"scene"`
-		Permission string      `json:"permission"`
-		RoomKey    string      `json:"roomKey"`
-	}{scene, p, scene.RoomKey}
+type SceneAccess struct {
+	Scene      store.Scene `json:"scene"`
+	Permission string      `json:"permission"`
+	RoomKey    string      `json:"roomKey"`
 }
+
+func access(scene store.Scene, p string) SceneAccess {
+	return SceneAccess{scene, p, scene.RoomKey}
+}
+
 func (s *Server) listScenes(w http.ResponseWriter, r *http.Request) error {
 	uid, err := requireUser(r)
 	if err != nil {
@@ -70,6 +73,7 @@ func (s *Server) listScenes(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, map[string]any{"scenes": scenes})
 	return nil
 }
+
 func (s *Server) collectionOwner(id *string, uid string) error {
 	if id == nil {
 		return nil
@@ -87,11 +91,16 @@ func (s *Server) collectionOwner(id *string, uid string) error {
 	}
 	return nil
 }
-func validName(name string) bool { return strings.TrimSpace(name) != "" && len(name) <= 1024 }
+
+func validName(name string) bool {
+	return strings.TrimSpace(name) != "" && len(name) <= 1024
+}
+
 func (s *Server) insertScene(scene store.Scene) error {
 	_, err := s.Store.DB.Exec("INSERT INTO scenes(id,owner_id,name,collection_id,room_key,share_mode,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", scene.ID, scene.OwnerID, scene.Name, scene.CollectionID, scene.RoomKey, scene.ShareMode, scene.CreatedAt, scene.UpdatedAt)
 	return err
 }
+
 func (s *Server) createScene(w http.ResponseWriter, r *http.Request) error {
 	uid, err := requireUser(r)
 	if err != nil {
@@ -123,6 +132,7 @@ func (s *Server) createScene(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 201, access(scene, "owner"))
 	return nil
 }
+
 func (s *Server) getScene(w http.ResponseWriter, r *http.Request) error {
 	scene, p, err := s.sceneAccess(r, false, false)
 	if err != nil {
@@ -131,6 +141,7 @@ func (s *Server) getScene(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, access(scene, p))
 	return nil
 }
+
 func (s *Server) patchScene(w http.ResponseWriter, r *http.Request) error {
 	s.Store.Mutation.Lock()
 	defer s.Store.Mutation.Unlock()
@@ -174,6 +185,7 @@ func (s *Server) patchScene(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, scene)
 	return nil
 }
+
 func (s *Server) deleteScene(w http.ResponseWriter, r *http.Request) error {
 	s.Store.Mutation.Lock()
 	defer s.Store.Mutation.Unlock()
@@ -183,6 +195,9 @@ func (s *Server) deleteScene(w http.ResponseWriter, r *http.Request) error {
 	}
 	if r.URL.Query().Get("permanent") == "1" {
 		err = s.Store.DeleteScene(scene.ID)
+		if err == nil {
+			s.Hub.Kick(scene.ID)
+		}
 	} else {
 		_, err = s.Store.DB.Exec("UPDATE scenes SET deleted_at=COALESCE(deleted_at,?),updated_at=? WHERE id=?", store.Now(), store.Now(), scene.ID)
 	}
@@ -192,6 +207,7 @@ func (s *Server) deleteScene(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(204)
 	return nil
 }
+
 func (s *Server) restoreScene(w http.ResponseWriter, r *http.Request) error {
 	s.Store.Mutation.Lock()
 	defer s.Store.Mutation.Unlock()
@@ -207,6 +223,7 @@ func (s *Server) restoreScene(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, scene)
 	return nil
 }
+
 func (s *Server) duplicateScene(w http.ResponseWriter, r *http.Request) (err error) {
 	uid, err := requireUser(r)
 	if err != nil {
@@ -243,54 +260,54 @@ func (s *Server) duplicateScene(w http.ResponseWriter, r *http.Request) (err err
 			}
 		}
 	}()
-	var room Room
-	err = s.Store.DB.QueryRow("SELECT rev,scene_version,iv,ciphertext FROM rooms WHERE id=?", old.ID).Scan(&room.Rev, &room.SceneVersion, &room.IV, &room.Ciphertext)
+	room, err := s.Store.Room(old.ID, 0)
 	if err == nil {
-		p, e := crypt.Decrypt(old.RoomKey, room.IV, room.Ciphertext)
-		if e != nil {
-			return e
+		var plaintext []byte
+		plaintext, err = crypt.Decrypt(old.RoomKey, room.IV, room.Ciphertext)
+		if err != nil {
+			return err
 		}
-		room.IV, room.Ciphertext, e = crypt.Encrypt(scene.RoomKey, p)
-		if e != nil {
-			return e
+		room.IV, room.Ciphertext, err = crypt.Encrypt(scene.RoomKey, plaintext)
+		if err != nil {
+			return err
 		}
-		if e = s.saveRoom(scene.ID, uid, room, 0); e != nil {
-			return e
+		if err = s.saveRoom(scene.ID, uid, room, 0); err != nil {
+			return err
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	err = nil
-	entries, e := os.ReadDir(s.Store.File("rooms", old.ID, ""))
-	if e != nil && !os.IsNotExist(e) {
-		return e
+	entries, err := os.ReadDir(s.Store.File("rooms", old.ID, ""))
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 	for _, entry := range entries {
 		if !store.ValidID(entry.Name()) || !entry.Type().IsRegular() {
 			continue
 		}
-		b, e := os.ReadFile(s.Store.File("rooms", old.ID, entry.Name()))
-		if e != nil {
-			return e
+		var data []byte
+		data, err = os.ReadFile(s.Store.File("rooms", old.ID, entry.Name()))
+		if err != nil {
+			return err
 		}
-		b, e = crypt.Reencrypt(old.RoomKey, scene.RoomKey, b)
-		if e != nil {
-			return e
+		data, err = crypt.Reencrypt(old.RoomKey, scene.RoomKey, data)
+		if err != nil {
+			return err
 		}
-		if e = store.AtomicWrite(s.Store.File("rooms", scene.ID, entry.Name()), b); e != nil {
-			return e
+		if err = store.AtomicWrite(s.Store.File("rooms", scene.ID, entry.Name()), data); err != nil {
+			return err
 		}
 	}
-	thumb, e := os.ReadFile(s.Store.Thumb(old.ID))
-	if e == nil {
-		if e = store.AtomicWrite(s.Store.Thumb(scene.ID), thumb); e != nil {
-			return e
+	thumb, err := os.ReadFile(s.Store.Thumb(old.ID))
+	if err == nil {
+		if err = store.AtomicWrite(s.Store.Thumb(scene.ID), thumb); err != nil {
+			return err
 		}
-		if _, e = s.Store.DB.Exec("UPDATE scenes SET thumbnail_updated_at=? WHERE id=?", store.Now(), scene.ID); e != nil {
-			return e
+		if _, err = s.Store.DB.Exec("UPDATE scenes SET thumbnail_updated_at=? WHERE id=?", store.Now(), scene.ID); err != nil {
+			return err
 		}
-	} else if !os.IsNotExist(e) {
-		return e
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 	scene, err = s.Store.Scene(scene.ID)
 	if err != nil {

@@ -31,6 +31,7 @@ func (p peer) send(event string, args ...any) {
 		p.t.Fatal(err)
 	}
 }
+
 func (p peer) read(event string) Message {
 	p.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -45,6 +46,7 @@ func (p peer) read(event string) Message {
 	}
 	return m
 }
+
 func TestTwoClients(t *testing.T) {
 	c, err := config.Load(nil)
 	if err != nil {
@@ -99,7 +101,9 @@ func TestTwoClients(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { conn.CloseNow() })
+		t.Cleanup(func() {
+			conn.CloseNow()
+		})
 		p := peer{t: t, c: conn}
 		p.id = p.read("hello").Args[0].(string)
 		if len(p.id) != 22 {
@@ -190,7 +194,10 @@ func TestTwoClients(t *testing.T) {
 	owner.read("error")
 	// Reader must run while Close performs the WebSocket close handshake.
 	closed := make(chan error, 1)
-	go func() { _, _, err := owner.c.Read(context.Background()); closed <- err }()
+	go func() {
+		_, _, err := owner.c.Read(context.Background())
+		closed <- err
+	}()
 	h.Close()
 	if err = <-closed; websocket.CloseStatus(err) != websocket.StatusGoingAway {
 		t.Fatalf("shutdown: %v", err)
@@ -200,6 +207,7 @@ func TestTwoClients(t *testing.T) {
 		t.Fatal("cross-origin websocket accepted")
 	}
 }
+
 func TestFraming(t *testing.T) {
 	f := Encode("event", "room", []byte{1, 2}, []byte{3})
 	m, err := Decode(f)
@@ -212,6 +220,7 @@ func TestFraming(t *testing.T) {
 		}
 	}
 }
+
 func frameJSON(raw string) []byte {
 	b := Encode("e")
 	b = append(b[:5], raw...)
@@ -222,20 +231,21 @@ func frameJSON(raw string) []byte {
 	b[4] = byte(n)
 	return b
 }
+
 func TestQueuePolicy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	c := &client{ctx: ctx, cancel: cancel, send: make(chan outbound, 128)}
+	c := &client{ctx: ctx, cancel: cancel, send: make(chan outbound, sendQueueCount)}
 	h := &Hub{}
-	for range 65 {
+	for range volatileQueueThreshold + 1 {
 		c.send <- outbound{}
 	}
 	h.emit(c, "volatile", true)
-	if len(c.send) != 65 {
+	if len(c.send) != volatileQueueThreshold+1 {
 		t.Fatal("volatile not dropped")
 	}
 	h.emit(c, "regular", false)
-	if len(c.send) != 66 {
+	if len(c.send) != volatileQueueThreshold+2 {
 		t.Fatal("regular dropped")
 	}
 	data := Encode("client-broadcast", []byte{1}, []byte{2})
@@ -245,5 +255,159 @@ func TestQueuePolicy(t *testing.T) {
 	}
 	if _, err = json.Marshal(m); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAnonymousAdHocBroadcast(t *testing.T) {
+	s, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	cfg := config.Config{BaseURL: "http://draw.example", MaxRoomBytes: 8 << 20}
+	h := New(s, cfg)
+	server := httptest.NewServer(h)
+	defer server.Close()
+	defer h.Close()
+	dial := func() peer {
+		conn, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(server.URL, "http"), &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {cfg.BaseURL}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			conn.CloseNow()
+		})
+		p := peer{t: t, c: conn}
+		p.id = p.read("hello").Args[0].(string)
+		p.read("init-room")
+		return p
+	}
+	a, b := dial(), dial()
+	room := "unsaved-anonymous"
+	a.send("join-room", room)
+	a.read("first-in-room")
+	a.read("room-user-change")
+	b.send("join-room", room)
+	a.read("new-user")
+	a.read("room-user-change")
+	b.read("room-user-change")
+	ct, iv := bytes.Repeat([]byte{7}, 32), bytes.Repeat([]byte{8}, 12)
+	for _, pair := range [][2]peer{{a, b}, {b, a}} {
+		pair[0].send("server-broadcast", room, ct, iv)
+		m := pair[1].read("client-broadcast")
+		if !bytes.Equal(m.Args[0].([]byte), ct) || !bytes.Equal(m.Args[1].([]byte), iv) {
+			t.Fatal(m)
+		}
+	}
+	if p, err := s.RoomPermission("", room); err != nil || p != "view" {
+		t.Fatalf("HTTP create permission changed: %s, %v", p, err)
+	}
+}
+
+func queuedClient(t *testing.T, id string) *client {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	return &client{id: id, ctx: ctx, cancel: cancel, send: make(chan outbound, sendQueueCount)}
+}
+
+func TestBroadcastSharesFrameAndBoundsBytes(t *testing.T) {
+	h := &Hub{}
+	a, b := queuedClient(t, "a"), queuedClient(t, "b")
+	members := map[string]*client{"a": a, "b": b}
+	payload := make([]byte, (8<<20)-128)
+	h.broadcast(members, nil, "client-broadcast", false, payload, make([]byte, 12))
+	first, second := <-a.send, <-b.send
+	if &first.data[0] != &second.data[0] {
+		t.Fatal("broadcast encoded a separate frame per recipient")
+	}
+	a.queuedBytes.Add(-int64(len(first.data)))
+	b.queuedBytes.Add(-int64(len(second.data)))
+	for range 2 {
+		h.broadcast(members, nil, "client-broadcast", false, payload, make([]byte, 12))
+	}
+	if a.queuedBytes.Load() > sendQueueBytes || len(a.send) != 2 {
+		t.Fatal("unexpected queue size", a.queuedBytes.Load(), len(a.send))
+	}
+	h.broadcast(members, nil, "client-broadcast", true, payload, make([]byte, 12))
+	if len(a.send) != 2 || a.ctx.Err() != nil {
+		t.Fatal("volatile overflow should be dropped")
+	}
+	h.broadcast(members, nil, "client-broadcast", false, payload, make([]byte, 12))
+	if a.ctx.Err() == nil || b.ctx.Err() == nil || len(a.send) != 2 || a.queuedBytes.Load() > sendQueueBytes {
+		t.Fatal("regular byte overflow did not disconnect")
+	}
+	c := queuedClient(t, "count")
+	for range sendQueueCount + 1 {
+		h.emit(c, "small", false)
+	}
+	if len(c.send) != sendQueueCount || c.ctx.Err() == nil {
+		t.Fatal("count overflow did not disconnect")
+	}
+}
+
+func TestPermissionQueriesDoNotBlockBroadcast(t *testing.T) {
+	for _, operation := range []string{"join", "recheck"} {
+		t.Run(operation, func(t *testing.T) {
+			s, err := store.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			h := New(s, config.Config{})
+			a, b, checked := queuedClient(t, "a"), queuedClient(t, "b"), queuedClient(t, "checked")
+			a.room, a.permission, b.room = "active", "edit", "active"
+			checked.room, checked.permission = "old", "edit"
+			h.rooms["active"] = map[string]*client{"a": a, "b": b}
+			conn, err := s.DB.Conn(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			before := s.DB.Stats().WaitCount
+			finished := make(chan struct{})
+			go func() {
+				defer close(finished)
+				if operation == "join" {
+					h.handle(checked, Message{Event: "join-room", Args: []any{"new"}})
+				} else {
+					h.recheck(checked)
+				}
+			}()
+			deadline := time.Now().Add(3 * time.Second)
+			for s.DB.Stats().WaitCount == before {
+				if time.Now().After(deadline) {
+					t.Fatal("permission query did not wait for the held connection")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			broadcast := make(chan struct{})
+			go func() {
+				h.handle(a, Message{Event: "server-broadcast", Args: []any{"active", make([]byte, 16), make([]byte, 12)}})
+				close(broadcast)
+			}()
+			select {
+			case <-broadcast:
+			case <-time.After(time.Second):
+				t.Fatal("SQLite query held hub mutex and blocked another room")
+			}
+			if len(b.send) != 1 {
+				t.Fatal("broadcast not delivered")
+			}
+			// A membership change while SQLite is busy must invalidate the stale result.
+			h.mu.Lock()
+			h.leave(checked)
+			checked.room, checked.permission = "replacement", "view"
+			h.mu.Unlock()
+			conn.Close()
+			select {
+			case <-finished:
+			case <-time.After(3 * time.Second):
+				t.Fatal("permission query did not finish")
+			}
+			if checked.room != "replacement" || checked.permission != "view" {
+				t.Fatal("stale permission result applied to new membership")
+			}
+		})
 	}
 }

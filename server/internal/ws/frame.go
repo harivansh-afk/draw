@@ -10,6 +10,7 @@ type Message struct {
 	Event string
 	Args  []any
 }
+
 type header struct {
 	Event  string            `json:"e"`
 	Args   []json.RawMessage `json:"a"`
@@ -37,7 +38,12 @@ func Encode(event string, args ...any) []byte {
 		Args   []any  `json:"a"`
 		Binary []int  `json:"b,omitempty"`
 	}{event, a, lengths})
-	out := []byte{1}
+	size := 5 + len(h)
+	for _, b := range bins {
+		size += len(b)
+	}
+	out := make([]byte, 1, size)
+	out[0] = 1
 	out = binary.BigEndian.AppendUint32(out, uint32(len(h)))
 	out = append(out, h...)
 	for _, b := range bins {
@@ -45,6 +51,7 @@ func Encode(event string, args ...any) []byte {
 	}
 	return out
 }
+
 func Decode(frame []byte) (Message, error) {
 	bad := errors.New("bad message")
 	if len(frame) < 5 || frame[0] != 1 {

@@ -23,6 +23,7 @@ import (
 	crypt "git.harivan.sh/harivansh-afk/draw/server/internal/crypto"
 	"git.harivan.sh/harivansh-afk/draw/server/internal/store"
 	"git.harivan.sh/harivansh-afk/draw/server/internal/ws"
+	"github.com/coder/websocket"
 )
 
 type fixture struct {
@@ -57,9 +58,14 @@ func setup(t *testing.T, open bool) *fixture {
 	app := &Server{Store: s, Auth: a, Config: c, Hub: hub, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	ts := httptest.NewServer(app.Handler(fstest.MapFS{"index.html": {Data: []byte("<html>draw</html>")}, "assets/a-123.js": {Data: []byte("asset")}, "fonts/a.woff2": {Data: []byte("font")}, "locales/en.json": {Data: []byte("{}")}, "sw.js": {Data: []byte("sw")}, "manifest.webmanifest": {Data: []byte("{}")}}))
 	f := &fixture{t, app, ts}
-	t.Cleanup(func() { hub.Close(); ts.Close(); s.Close() })
+	t.Cleanup(func() {
+		hub.Close()
+		ts.Close()
+		s.Close()
+	})
 	return f
 }
+
 func (f *fixture) request(method, path string, data any, cookie string, headers map[string]string) *http.Response {
 	f.t.Helper()
 	var b []byte
@@ -89,9 +95,12 @@ func (f *fixture) request(method, path string, data any, cookie string, headers 
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	f.t.Cleanup(func() { resp.Body.Close() })
+	f.t.Cleanup(func() {
+		resp.Body.Close()
+	})
 	return resp
 }
+
 func status(t *testing.T, r *http.Response, want int) {
 	t.Helper()
 	if r.StatusCode != want {
@@ -99,6 +108,7 @@ func status(t *testing.T, r *http.Response, want int) {
 		t.Fatalf("status %d want %d: %s", r.StatusCode, want, b)
 	}
 }
+
 func readJSON[T any](t *testing.T, r *http.Response) T {
 	t.Helper()
 	defer r.Body.Close()
@@ -108,6 +118,7 @@ func readJSON[T any](t *testing.T, r *http.Response) T {
 	}
 	return v
 }
+
 func (f *fixture) login(email string) string {
 	r := f.request("POST", "/api/auth/dev", map[string]string{"email": email}, "", nil)
 	status(f.t, r, 204)
@@ -130,6 +141,7 @@ func (f *fixture) scene(cookie string) sceneAccess {
 	status(f.t, r, 201)
 	return readJSON[sceneAccess](f.t, r)
 }
+
 func TestAuthAllowlistCSRF(t *testing.T) {
 	f := setup(t, false)
 	status(t, f.request("POST", "/api/auth/dev", map[string]string{"email": "owner@example.com"}, "", map[string]string{"Origin": ""}), 403)
@@ -158,6 +170,7 @@ func TestAuthAllowlistCSRF(t *testing.T) {
 	status(t, f.request("POST", "/api/auth/logout", nil, cookie, map[string]string{"Origin": "", "Sec-Fetch-Site": "same-origin"}), 204)
 	status(t, f.request("GET", "/api/auth/me", nil, cookie, nil), 401)
 }
+
 func TestScenesPermissionsCollectionsLibrary(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -230,6 +243,7 @@ func TestScenesPermissionsCollectionsLibrary(t *testing.T) {
 	status(t, f.request("DELETE", base+"?permanent=1", nil, owner, nil), 204)
 	status(t, f.request("GET", base, nil, owner, nil), 404)
 }
+
 func TestRoomsHistoryConcurrency(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -293,6 +307,7 @@ func TestRoomsHistoryConcurrency(t *testing.T) {
 	f.s.Config.MaxRoomBytes = 30
 	status(t, f.request("PUT", path, payload, owner, map[string]string{"If-Match": "\"3\""}), 413)
 }
+
 func TestFilesSnapshotsThumbnailsDuplicate(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -371,6 +386,7 @@ func TestFilesSnapshotsThumbnailsDuplicate(t *testing.T) {
 		t.Fatal("thumbnail remains")
 	}
 }
+
 func TestStaticAndLimits(t *testing.T) {
 	f := setup(t, true)
 	for _, tt := range []struct {
@@ -407,6 +423,7 @@ func TestStaticAndLimits(t *testing.T) {
 	}
 	status(t, f.request("GET", "/api/health", nil, "", nil), 200)
 }
+
 func TestNoPartialDuplicate(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -434,4 +451,147 @@ func TestAuthenticatedLimitsAndForwardedIP(t *testing.T) {
 		t.Fatal(got)
 	}
 	status(t, f.request("GET", "/api/ws", nil, "", map[string]string{"X-Forwarded-For": "192.0.2.1"}), 426)
+}
+
+func TestSpoofedProxySnapshotLimit(t *testing.T) {
+	for _, cf := range []string{"", "203.0.113.9"} {
+		t.Run("CF="+cf, func(t *testing.T) {
+			f := setup(t, true)
+			f.s.Config.TrustProxy = true
+			for i := range 31 {
+				headers := map[string]string{"X-Forwarded-For": fmt.Sprintf("198.51.100.%d, 203.0.113.8, 10.0.0.1, ::1", i), "CF-Connecting-IP": cf}
+				if cf != "" {
+					headers["X-Forwarded-For"] = fmt.Sprintf("198.51.100.%d", i)
+				}
+				want := 200
+				if i == 30 {
+					want = 429
+				}
+				status(t, f.request("POST", "/api/v2/post", []byte("snapshot"), "", headers), want)
+			}
+		})
+	}
+}
+
+func TestSnapshotFilesAreImmutable(t *testing.T) {
+	f := setup(t, true)
+	r := f.request("POST", "/api/v2/post", []byte("snapshot"), "", nil)
+	status(t, r, 200)
+	id := readJSON[struct{ ID string }](t, r).ID
+	path := "/api/files/shareLinks/" + id + "/image"
+	status(t, f.request("PUT", path, []byte("original"), "", nil), 204)
+	status(t, f.request("PUT", path, []byte("replacement"), "", nil), 204)
+	r = f.request("GET", path, nil, "", nil)
+	status(t, r, 200)
+	b, err := io.ReadAll(r.Body)
+	if err != nil || string(b) != "original" {
+		t.Fatalf("snapshot file changed: %q, %v", b, err)
+	}
+}
+
+func TestSnapshotTooLargeCompatibility(t *testing.T) {
+	f := setup(t, true)
+	f.s.Config.MaxRoomBytes = 4
+	r := f.request("POST", "/api/v2/post", []byte("large"), "", nil)
+	status(t, r, 413)
+	v := readJSON[map[string]string](t, r)
+	if v["error"] != "too_large" || v["error_class"] != "RequestTooLargeError" || v["message"] == "" {
+		t.Fatal(v)
+	}
+}
+
+func TestStaticMIMETypes(t *testing.T) {
+	f := setup(t, true)
+	for path, want := range map[string]string{"/fonts/a.woff2": "font/woff2", "/manifest.webmanifest": "application/manifest+json"} {
+		r := f.request("GET", path, nil, "", nil)
+		status(t, r, 200)
+		if got := r.Header.Get("Content-Type"); got != want {
+			t.Fatalf("%s: %s, want %s", path, got, want)
+		}
+	}
+}
+
+func TestSessionRefreshInterval(t *testing.T) {
+	f := setup(t, true)
+	cookie := f.login("owner@example.com")
+	var initial string
+	if err := f.s.Store.DB.QueryRow("SELECT last_seen_at FROM sessions").Scan(&initial); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		r := f.request("GET", "/api/auth/me", nil, cookie, nil)
+		status(t, r, 200)
+		if len(r.Cookies()) != 0 {
+			t.Fatal("fresh session reset cookie")
+		}
+	}
+	var seen string
+	if err := f.s.Store.DB.QueryRow("SELECT last_seen_at FROM sessions").Scan(&seen); err != nil || seen != initial {
+		t.Fatalf("fresh session updated: %s, %v", seen, err)
+	}
+	old := store.Before(time.Now().Add(-2 * time.Hour))
+	if _, err := f.s.Store.DB.Exec("UPDATE sessions SET last_seen_at=?", old); err != nil {
+		t.Fatal(err)
+	}
+	r := f.request("GET", "/api/auth/me", nil, cookie, nil)
+	status(t, r, 200)
+	if len(r.Cookies()) != 1 || r.Cookies()[0].MaxAge != 30*86400 {
+		t.Fatal("stale session did not refresh cookie")
+	}
+	if err := f.s.Store.DB.QueryRow("SELECT last_seen_at FROM sessions").Scan(&seen); err != nil || seen <= old {
+		t.Fatalf("stale session not refreshed: %s, %v", seen, err)
+	}
+	r = f.request("GET", "/api/auth/me", nil, cookie, nil)
+	if len(r.Cookies()) != 0 {
+		t.Fatal("refreshed session reset cookie again")
+	}
+}
+
+func TestDeletedSceneKicksMember(t *testing.T) {
+	for _, purge := range []bool{false, true} {
+		t.Run(fmt.Sprintf("purge=%t", purge), func(t *testing.T) {
+			f := setup(t, true)
+			cookie := f.login("owner@example.com")
+			scene := f.scene(cookie)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(f.http.URL, "http")+"/api/ws", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {f.s.Config.BaseURL}, "Cookie": {cookie}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.CloseNow()
+			read := func(event string) {
+				t.Helper()
+				_, b, err := conn.Read(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				m, err := ws.Decode(b)
+				if err != nil || m.Event != event {
+					t.Fatalf("expected %s, got %v: %v", event, m, err)
+				}
+			}
+			read("hello")
+			read("init-room")
+			if err := conn.Write(ctx, websocket.MessageBinary, ws.Encode("join-room", scene.Scene.ID)); err != nil {
+				t.Fatal(err)
+			}
+			read("first-in-room")
+			read("room-user-change")
+			if purge {
+				if _, err := f.s.Store.DB.Exec("UPDATE scenes SET deleted_at=? WHERE id=?", store.Before(time.Now().AddDate(0, 0, -31)), scene.Scene.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.s.Store.Purge(time.Now(), 30, f.s.Hub.Kick); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				status(t, f.request("DELETE", "/api/scenes/"+scene.Scene.ID+"?permanent=1", nil, cookie, nil), 204)
+			}
+			_, _, err = conn.Read(ctx)
+			if websocket.CloseStatus(err) != 4403 {
+				t.Fatalf("expected deleted room close 4403, got %v", err)
+			}
+		})
+	}
 }
