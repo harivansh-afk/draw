@@ -225,6 +225,8 @@ For an ad-hoc room (no scene with that id):
 - write: any signed-in user, or anyone if the room already exists (so
   anonymous invitees of a `/local` session can keep saving)
 - create: signed-in users only
+- websocket broadcast: anyone, even before the first room save; the room key
+  protects content
 
 `write` means `owner` or `edit`; `read` means `write` or `view`.
 
@@ -264,7 +266,7 @@ Scenes (signed in)
 - `PATCH /api/scenes/:id {name?, collectionId?, shareMode?}` → `SceneMeta`, owner only
 - `DELETE /api/scenes/:id` → moves to trash, 204. `?permanent=1` (owner only,
   scene must be in trash or not) deletes the scene, its room, room history,
-  files and thumbnail.
+  files and thumbnail, and closes live room members with 4403.
 - `POST /api/scenes/:id/restore` → `SceneMeta`
 - `POST /api/scenes/:id/duplicate {name?}` → 201 `SceneAccess`. Copies the room
   (decrypt with the old key, encrypt with the new one; same for each file's
@@ -365,13 +367,16 @@ goes to the whole room on join and to the remaining members on leave; follow
 rooms are named `follow@<socketId>`; a socket may be in one data room at a time
 (a second `join-room` leaves the first). Volatile broadcasts may be dropped
 when a receiver's send queue exceeds 64 messages; regular broadcasts are never
-dropped (slow receivers are disconnected instead). Server pings every 25 s and
+dropped (slow receivers are disconnected instead). Queues are bounded to 128
+frames and 16 MiB per receiver, including any in-flight write. Broadcast recipients
+share one immutable encoded frame. Server pings every 25 s and
 drops connections silent for 60 s. Message cap 1 MiB per frame for volatile,
 `DRAW_MAX_ROOM_BYTES` otherwise.
 
 Write permission for `server-broadcast` is evaluated once at `join-room` and
 re-evaluated every 30 s (so revoking a share kicks editors within 30 s: the
-server sends `error ["forbidden"]` and closes 4403).
+server sends `error ["forbidden"]` and closes 4403). Permanent deletion and
+trash purging immediately evict room members with 4403.
 
 ### Client transport shim (`excalidraw-app/collab/socket.ts`)
 

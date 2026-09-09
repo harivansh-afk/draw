@@ -204,6 +204,19 @@ func (s *Store) RoomPermission(user, id string) (string, error) {
 	}
 	return "view", err
 }
+
+// SocketPermission allows encrypted ad-hoc collaboration before the first HTTP save.
+func (s *Store) SocketPermission(user, id string) (string, error) {
+	scene, err := s.Scene(id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "edit", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return Permission(user, scene), nil
+}
+
 func (s *Store) DeleteScene(id string) error {
 	// Disk removal precedes the transaction so a failed removal can be retried.
 	if err := os.RemoveAll(s.File("rooms", id, "")); err != nil {
@@ -233,7 +246,7 @@ func (s *Store) Backup(path string) error {
 	_, err = s.DB.Exec("VACUUM INTO '" + strings.ReplaceAll(abs, "'", "''") + "'")
 	return err
 }
-func (s *Store) Purge(now time.Time, retention int) error {
+func (s *Store) Purge(now time.Time, retention int, kick func(string)) error {
 	s.Mutation.Lock()
 	defer s.Mutation.Unlock()
 	rows, err := s.DB.Query("SELECT id FROM scenes WHERE deleted_at IS NOT NULL AND deleted_at < ?", Before(now.AddDate(0, 0, -retention)))
@@ -257,6 +270,9 @@ func (s *Store) Purge(now time.Time, retention int) error {
 	for _, id := range ids {
 		if err = s.DeleteScene(id); err != nil {
 			return err
+		}
+		if kick != nil {
+			kick(id)
 		}
 	}
 	if _, err = s.DB.Exec("DELETE FROM sessions WHERE expires_at < ?", Before(now)); err != nil {
@@ -298,9 +314,9 @@ func (s *Store) Purge(now time.Time, retention int) error {
 	}
 	return nil
 }
-func (s *Store) Jobs(ctx context.Context, retention int, report func(error)) {
+func (s *Store) Jobs(ctx context.Context, retention int, kick func(string), report func(error)) {
 	run := func() {
-		if err := s.Purge(time.Now(), retention); err != nil {
+		if err := s.Purge(time.Now(), retention, kick); err != nil {
 			report(err)
 		}
 	}

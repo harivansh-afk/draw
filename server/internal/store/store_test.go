@@ -47,7 +47,7 @@ func TestMigrationsBackupPurge(t *testing.T) {
 		t.Fatal(count, err)
 	}
 	copied.Close()
-	if err = s.Purge(now, 30); err != nil {
+	if err = s.Purge(now, 30, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []string{"scenes", "sessions", "rooms", "room_versions", "snapshots"} {

@@ -120,7 +120,7 @@ func serve(c config.Config, log *slog.Logger) error {
 	jobsDone := make(chan struct{})
 	go func() {
 		defer close(jobsDone)
-		s.Jobs(jobsCtx, c.TrashRetentionDays, func(err error) { log.Error("cleanup failed", "error", err) })
+		s.Jobs(jobsCtx, c.TrashRetentionDays, hub.Kick, func(err error) { log.Error("cleanup failed", "error", err) })
 	}()
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()

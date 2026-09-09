@@ -81,7 +81,13 @@ registered explicitly for hosts without /etc/mime.types.
 OIDC email collisions with another subject are logged and return not_allowed;
 issuer+subject remains the identity key. OIDC failures redirect to /login?error=oidc or /login?error=not_allowed.
 WebSocket error events contain forbidden or bad_message. Forbidden joins and
-revoked access close with 4403; shutdown closes with 1001. All frames use the
+revoked access close with 4403; permanent deletion and trash purging evict members
+with 4403 immediately. Shutdown closes with 1001. Anonymous ad-hoc peers can
+broadcast before the first save; HTTP creation still requires a signed-in user.
+Each receiver is limited to 128 queued frames and 16 MiB including in-flight writes;
+broadcasts share one encoded frame. Volatile traffic drops under pressure, while
+regular traffic disconnects slow receivers. Permission queries do not hold the
+hub mutex. All frames use the
 binary version-1 transport, including hello and init-room. Room saves require
 If-None-Match: * or If-Match: "<rev>"; the returned rev and ETag advance atomically.
 

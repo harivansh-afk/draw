@@ -23,6 +23,7 @@ import (
 	crypt "git.harivan.sh/harivansh-afk/draw/server/internal/crypto"
 	"git.harivan.sh/harivansh-afk/draw/server/internal/store"
 	"git.harivan.sh/harivansh-afk/draw/server/internal/ws"
+	"github.com/coder/websocket"
 )
 
 type fixture struct {
@@ -527,5 +528,54 @@ func TestSessionRefreshInterval(t *testing.T) {
 	r = f.request("GET", "/api/auth/me", nil, cookie, nil)
 	if len(r.Cookies()) != 0 {
 		t.Fatal("refreshed session reset cookie again")
+	}
+}
+
+func TestDeletedSceneKicksMember(t *testing.T) {
+	for _, purge := range []bool{false, true} {
+		t.Run(fmt.Sprintf("purge=%t", purge), func(t *testing.T) {
+			f := setup(t, true)
+			cookie := f.login("owner@example.com")
+			scene := f.scene(cookie)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(f.http.URL, "http")+"/api/ws", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {f.s.Config.BaseURL}, "Cookie": {cookie}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.CloseNow()
+			read := func(event string) {
+				t.Helper()
+				_, b, err := conn.Read(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				m, err := ws.Decode(b)
+				if err != nil || m.Event != event {
+					t.Fatalf("expected %s, got %v: %v", event, m, err)
+				}
+			}
+			read("hello")
+			read("init-room")
+			if err := conn.Write(ctx, websocket.MessageBinary, ws.Encode("join-room", scene.Scene.ID)); err != nil {
+				t.Fatal(err)
+			}
+			read("first-in-room")
+			read("room-user-change")
+			if purge {
+				if _, err := f.s.Store.DB.Exec("UPDATE scenes SET deleted_at=? WHERE id=?", store.Before(time.Now().AddDate(0, 0, -31)), scene.Scene.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.s.Store.Purge(time.Now(), 30, f.s.Hub.Kick); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				status(t, f.request("DELETE", "/api/scenes/"+scene.Scene.ID+"?permanent=1", nil, cookie, nil), 204)
+			}
+			_, _, err = conn.Read(ctx)
+			if websocket.CloseStatus(err) != 4403 {
+				t.Fatalf("expected deleted room close 4403, got %v", err)
+			}
+		})
 	}
 }

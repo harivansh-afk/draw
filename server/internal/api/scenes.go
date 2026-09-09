@@ -183,6 +183,9 @@ func (s *Server) deleteScene(w http.ResponseWriter, r *http.Request) error {
 	}
 	if r.URL.Query().Get("permanent") == "1" {
 		err = s.Store.DeleteScene(scene.ID)
+		if err == nil {
+			s.Hub.Kick(scene.ID)
+		}
 	} else {
 		_, err = s.Store.DB.Exec("UPDATE scenes SET deleted_at=COALESCE(deleted_at,?),updated_at=? WHERE id=?", store.Now(), store.Now(), scene.ID)
 	}

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"git.harivan.sh/harivansh-afk/draw/server/internal/auth"
@@ -14,6 +15,17 @@ import (
 	crypt "git.harivan.sh/harivansh-afk/draw/server/internal/crypto"
 	"git.harivan.sh/harivansh-afk/draw/server/internal/store"
 	"github.com/coder/websocket"
+)
+
+const (
+	sendQueueCount            = 128
+	sendQueueBytes            = 16 << 20
+	volatileQueueThreshold    = 64
+	pingInterval              = 25 * time.Second
+	pingTimeout               = 35 * time.Second
+	permissionRecheckInterval = 30 * time.Second
+	writeTimeout              = 10 * time.Second
+	forbiddenClose            = websocket.StatusCode(4403)
 )
 
 type outbound struct {
@@ -27,6 +39,9 @@ type client struct {
 	ctx                                 context.Context
 	cancel                              context.CancelFunc
 	done                                chan struct{}
+	queuedBytes                         atomic.Int64
+	closing                             bool
+	membership                          uint64
 }
 type Hub struct {
 	store   *store.Store
@@ -56,7 +71,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	c := &client{id: crypt.Key(), conn: conn, send: make(chan outbound, 128), ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	c := &client{id: crypt.Key(), conn: conn, send: make(chan outbound, sendQueueCount), ctx: ctx, cancel: cancel, done: make(chan struct{})}
 	identity := auth.Current(r)
 	c.session = identity.SessionHash
 	if identity.User != nil {
@@ -91,9 +106,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.mu.Unlock()
 			continue
 		}
-		h.mu.Lock()
 		h.handle(c, m)
-		h.mu.Unlock()
 	}
 	h.mu.Lock()
 	h.leave(c)
@@ -135,9 +148,10 @@ func (c *client) writer() {
 		case <-c.ctx.Done():
 			return
 		case item := <-c.send:
-			ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+			ctx, cancel := context.WithTimeout(c.ctx, writeTimeout)
 			err := c.conn.Write(ctx, websocket.MessageBinary, item.data)
 			cancel()
+			c.queuedBytes.Add(-int64(len(item.data)))
 			if err != nil {
 				_ = c.conn.CloseNow()
 				return
@@ -150,29 +164,71 @@ func (c *client) writer() {
 	}
 }
 
-// All membership changes and queue operations run under h.mu; no network write holds it.
+// Membership and enqueues run under h.mu; the writer releases bytes after each write.
 func (h *Hub) emit(c *client, event string, volatile bool, args ...any) {
-	if volatile && len(c.send) > 64 {
+	h.enqueue(c, outbound{data: Encode(event, args...)}, volatile)
+}
+
+func (h *Hub) enqueue(c *client, item outbound, volatile bool) {
+	if c.closing {
 		return
 	}
-	select {
-	case c.send <- outbound{data: Encode(event, args...)}:
-	default:
-		c.cancel()
+	n := int64(len(item.data))
+	if volatile && (len(c.send) > volatileQueueThreshold || c.queuedBytes.Load()+n > sendQueueBytes) {
+		return
+	}
+	if c.queuedBytes.Load()+n <= sendQueueBytes {
+		c.queuedBytes.Add(n)
+		select {
+		case c.send <- item:
+			return
+		default:
+			c.queuedBytes.Add(-n)
+		}
+	}
+	c.closing = true
+	c.cancel()
+	if c.conn != nil {
 		go c.conn.Close(websocket.StatusPolicyViolation, "slow receiver")
 	}
 }
+
+func (h *Hub) broadcast(members map[string]*client, except *client, event string, volatile bool, args ...any) {
+	item := outbound{data: Encode(event, args...)}
+	for _, other := range members {
+		if other != except {
+			h.enqueue(other, item, volatile)
+		}
+	}
+}
+
 func (h *Hub) deny(c *client, close bool) {
 	item := outbound{data: Encode("error", "forbidden")}
 	if close {
-		item.close = 4403
+		item.close = forbiddenClose
 	}
-	select {
-	case c.send <- item:
-	default:
-		c.cancel()
+	h.enqueue(c, item, false)
+	if close {
+		c.closing = true
 	}
 }
+
+// Kick removes membership immediately and sends a close even when the data queue is full.
+func (h *Hub) Kick(roomID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	members := h.rooms[roomID]
+	delete(h.rooms, roomID)
+	for _, c := range members {
+		c.closing = true
+		h.leave(c)
+		go func() {
+			_ = c.conn.Close(forbiddenClose, "room deleted")
+			c.cancel()
+		}()
+	}
+}
+
 func ids(m map[string]*client) []string {
 	v := []string{}
 	for id := range m {
@@ -187,9 +243,7 @@ func (h *Hub) leave(c *client) {
 		if len(members) == 0 {
 			delete(h.rooms, c.room)
 		} else {
-			for _, other := range members {
-				h.emit(other, "room-user-change", false, ids(members))
-			}
+			h.broadcast(members, nil, "room-user-change", false, ids(members))
 		}
 	}
 	for target, members := range h.follows {
@@ -209,46 +263,70 @@ func (h *Hub) leave(c *client) {
 	}
 	c.room = ""
 	c.permission = ""
+	c.membership++
 }
+func (h *Hub) badMessage(c *client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.emit(c, "error", false, "bad_message")
+}
+
+func (h *Hub) join(c *client, m Message) {
+	if len(m.Args) != 1 {
+		h.badMessage(c)
+		return
+	}
+	room, ok := m.Args[0].(string)
+	if !ok || !store.ValidID(room) {
+		h.badMessage(c)
+		return
+	}
+	h.store.Mutation.Lock()
+	defer h.store.Mutation.Unlock()
+	h.mu.Lock()
+	user, previous, membership := c.user, c.room, c.membership
+	h.mu.Unlock()
+	p, err := h.store.SocketPermission(user, room)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if c.closing || c.room != previous || c.membership != membership {
+		return
+	}
+	if err != nil || p == "none" {
+		h.deny(c, true)
+		return
+	}
+	if c.room == room {
+		return
+	}
+	h.leave(c)
+	c.room = room
+	c.permission = p
+	if h.rooms[room] == nil {
+		h.rooms[room] = map[string]*client{}
+	}
+	members := h.rooms[room]
+	if len(members) == 0 {
+		h.emit(c, "first-in-room", false)
+	} else {
+		h.broadcast(members, nil, "new-user", false, c.id)
+	}
+	members[c.id] = c
+	h.broadcast(members, nil, "room-user-change", false, ids(members))
+}
+
 func (h *Hub) handle(c *client, m Message) {
+	if m.Event == "join-room" {
+		h.join(c, m)
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if c.closing {
+		return
+	}
 	bad := func() { h.emit(c, "error", false, "bad_message") }
 	switch m.Event {
-	case "join-room":
-		if len(m.Args) != 1 {
-			bad()
-			return
-		}
-		room, ok := m.Args[0].(string)
-		if !ok || !store.ValidID(room) {
-			bad()
-			return
-		}
-		p, err := h.store.RoomPermission(c.user, room)
-		if err != nil || p == "none" {
-			h.deny(c, true)
-			return
-		}
-		if c.room == room {
-			return
-		}
-		h.leave(c)
-		c.room = room
-		c.permission = p
-		if h.rooms[room] == nil {
-			h.rooms[room] = map[string]*client{}
-		}
-		members := h.rooms[room]
-		if len(members) == 0 {
-			h.emit(c, "first-in-room", false)
-		} else {
-			for _, other := range members {
-				h.emit(other, "new-user", false, c.id)
-			}
-		}
-		members[c.id] = c
-		for _, other := range members {
-			h.emit(other, "room-user-change", false, ids(members))
-		}
 	case "server-broadcast", "server-volatile-broadcast":
 		if len(m.Args) != 3 {
 			bad()
@@ -277,11 +355,7 @@ func (h *Hub) handle(c *client, m Message) {
 			h.deny(c, false)
 			return
 		}
-		for _, other := range members {
-			if other != c {
-				h.emit(other, "client-broadcast", volatile, ct, iv)
-			}
-		}
+		h.broadcast(members, c, "client-broadcast", volatile, ct, iv)
 	case "user-follow":
 		if len(m.Args) != 1 || c.room == "" {
 			bad()
@@ -321,14 +395,14 @@ func (h *Hub) handle(c *client, m Message) {
 }
 func (h *Hub) maintenance(c *client) {
 	go func() {
-		ping := time.NewTicker(25 * time.Second)
+		ping := time.NewTicker(pingInterval)
 		defer ping.Stop()
 		for {
 			select {
 			case <-c.ctx.Done():
 				return
 			case <-ping.C:
-				ctx, cancel := context.WithTimeout(c.ctx, 35*time.Second)
+				ctx, cancel := context.WithTimeout(c.ctx, pingTimeout)
 				err := c.conn.Ping(ctx)
 				cancel()
 				if err != nil {
@@ -339,7 +413,7 @@ func (h *Hub) maintenance(c *client) {
 			}
 		}
 	}()
-	check := time.NewTicker(30 * time.Second)
+	check := time.NewTicker(permissionRecheckInterval)
 	defer check.Stop()
 	for {
 		select {
@@ -354,17 +428,33 @@ func (h *Hub) maintenance(c *client) {
 }
 func (h *Hub) recheck(c *client) bool {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	uid := c.user
-	if c.session != "" {
+	uid, session, room, membership := c.user, c.session, c.room, c.membership
+	closing := c.closing
+	h.mu.Unlock()
+	if closing {
+		return false
+	}
+	if session != "" {
 		var n int
-		err := h.store.DB.QueryRow("SELECT count(*) FROM sessions WHERE token_hash=? AND expires_at>?", c.session, store.Now()).Scan(&n)
+		err := h.store.DB.QueryRow("SELECT count(*) FROM sessions WHERE token_hash=? AND expires_at>?", session, store.Now()).Scan(&n)
 		if err != nil || n == 0 {
 			uid = ""
 		}
 	}
-	if c.room != "" {
-		p, err := h.store.RoomPermission(uid, c.room)
+	var p string
+	var err error
+	if room != "" {
+		p, err = h.store.SocketPermission(uid, room)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if c.closing {
+		return false
+	}
+	if c.room != room || c.membership != membership {
+		return true
+	}
+	if room != "" {
 		if err != nil || p == "none" || (store.CanWrite(c.permission) && !store.CanWrite(p)) {
 			h.deny(c, true)
 			return false
@@ -374,6 +464,7 @@ func (h *Hub) recheck(c *client) bool {
 	c.user = uid
 	return true
 }
+
 func (h *Hub) Close() {
 	h.mu.Lock()
 	h.closed = true
