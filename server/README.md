@@ -101,6 +101,8 @@ DRAW_DATA_DIR=/var/lib/draw ./draw import-excalidash \
 DRAW_DATA_DIR=/var/lib/draw ./draw import-excalidash \
   --db /path/to/excalidash/dev.db --uploads /path/to/uploads \
   --owner owner@example.com
+./draw import-dir /path/to/excalidraw-export --owner owner@example.com \
+  --create-owner --dry-run --data-dir /var/lib/draw
 DRAW_DATA_DIR=/var/lib/draw ./draw backup /path/to/new-backup.sqlite \
   --files /path/to/new-media-backup
 ```
@@ -122,6 +124,30 @@ before this migration have no recorded source id and cannot be deduplicated
 retroactively.
 --dry-run creates no users/scenes/files, though opening a new destination initializes
 its database schema. --data-dir also overrides the import destination.
+
+`draw import-dir DIR --owner EMAIL [--create-owner] [--dry-run] [--data-dir DIR]`
+recursively imports `.excalidraw` files from an Excalidraw+ export. The first-level
+directory supplies the collection name, including for files nested more deeply;
+top-level files have no collection. Collections are reused by name for the owner
+or created on demand. Scene names come from `metadata.name`, falling back to the
+filename without its extension. RFC 3339 `metadata.created` and `metadata.updated`
+are preserved; each missing timestamp falls back independently to the file mtime.
+Elements and every embedded `data:` URL in the files map are encrypted under a
+fresh room key using the same room and file formats as the ExcaliDash importer.
+File ids allow up to 128 characters, preserving Excalidraw+'s 96-character ids
+through import, serving and duplication.
+Image elements are preserved even when the export omits their file data; only
+embedded files are stored and remote URLs are not fetched.
+
+Directory imports record prefixed provenance from `metadata.id`, or SHA-256 of
+the complete file bytes when no id is present. Identical source ids or hashes are
+skipped across paths and reruns, even after deleting the imported scene. These
+keys are distinct from ExcaliDash ids. The entire tree is validated before any
+users, collections, scenes or media are written. Dry runs list collections to
+create and each scene's name, collection, timestamps, element and image counts,
+followed by import/skip totals. Remove `--dry-run` to commit the plan. Source files
+are read only; symlinked `.excalidraw` files are rejected and symlinked directories
+are not traversed. Individual export files are limited to 64 MiB.
 
 Backup uses VACUUM INTO and refuses an existing output file. Optional --files DIR
 creates a new directory containing files/ and thumbs/, using hard links or copying

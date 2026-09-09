@@ -38,10 +38,16 @@ func Before(t time.Time) string {
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
+var validFileID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 var snapshotID = regexp.MustCompile(`^[a-f0-9]{20}$`)
 
 func ValidID(s string) bool {
 	return validID.MatchString(s)
+}
+
+func ValidFileID(s string) bool {
+	return validFileID.MatchString(s)
 }
 
 func SnapshotID(s string) bool {

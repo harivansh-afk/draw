@@ -77,12 +77,16 @@ func run(args []string, log *slog.Logger) error {
 			}
 		}
 		return nil
-	case "import-excalidash":
+	case "import-excalidash", "import-dir":
 		f := flag.NewFlagSet(command, flag.ContinueOnError)
 		var o importer.Options
 		var dataDir string
-		f.StringVar(&o.DB, "db", "", "ExcaliDash SQLite database")
-		f.StringVar(&o.Uploads, "uploads", "", "ExcaliDash uploads directory")
+		if command == "import-excalidash" {
+			f.StringVar(&o.DB, "db", "", "ExcaliDash SQLite database")
+			f.StringVar(&o.Uploads, "uploads", "", "ExcaliDash uploads directory")
+		} else if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			args = append(append([]string{}, args[1:]...), args[0])
+		}
 		f.StringVar(&o.Owner, "owner", "", "destination owner email")
 		f.BoolVar(&o.CreateOwner, "create-owner", false, "create owner for later verified login")
 		f.BoolVar(&o.DryRun, "dry-run", false, "validate and print plan")
@@ -90,7 +94,10 @@ func run(args []string, log *slog.Logger) error {
 		if err := f.Parse(args); err != nil {
 			return err
 		}
-		if o.DB == "" || o.Owner == "" || f.NArg() != 0 {
+		if command == "import-dir" && (f.NArg() != 1 || f.Arg(0) == "" || o.Owner == "") {
+			return errors.New("usage: draw import-dir DIR --owner EMAIL [--create-owner] [--dry-run] [--data-dir DIR]")
+		}
+		if command == "import-excalidash" && (o.DB == "" || o.Owner == "" || f.NArg() != 0) {
 			return errors.New("usage: draw import-excalidash --db dev.db --uploads DIR --owner EMAIL [--create-owner] [--dry-run]")
 		}
 		c, err := config.Load(nil)
@@ -105,6 +112,9 @@ func run(args []string, log *slog.Logger) error {
 			return err
 		}
 		defer s.Close()
+		if command == "import-dir" {
+			return importer.RunDir(s, f.Arg(0), o, os.Stdout)
+		}
 		return importer.Run(s, o, os.Stdout)
 	default:
 		return fmt.Errorf("unknown command %q", command)

@@ -1,4 +1,4 @@
-// Package importer reads schema-discovered ExcaliDash SQLite exports without modifying them.
+// Package importer imports ExcaliDash databases and Excalidraw directory exports.
 package importer
 
 import (
@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -120,6 +119,7 @@ type drawing struct {
 	oldID, name, collection, created, updated string
 	elements                                  []byte
 	version                                   int64
+	elementCount                              int
 	files                                     map[string][]byte
 	metadata                                  map[string]json.RawMessage
 }
@@ -159,15 +159,10 @@ func prepare(row record, collections map[string]string, fileRows []record, uploa
 		}
 		raw = envelope.Elements
 	}
-	var elements []struct {
-		Version int64  `json:"version"`
-		Type    string `json:"type"`
-		FileID  string `json:"fileId"`
+	elements, err := d.setElements(raw)
+	if err != nil {
+		return d, err
 	}
-	if err = json.Unmarshal(raw, &elements); err != nil || elements == nil {
-		return d, errors.New("elements must be a JSON array")
-	}
-	d.elements = raw
 	filesRaw := []byte(str(row.get("files")))
 	if len(filesRaw) == 0 {
 		filesRaw = envelope.Files
@@ -180,10 +175,6 @@ func prepare(row record, collections map[string]string, fileRows []record, uploa
 		return d, fmt.Errorf("files JSON: %w", err)
 	}
 	for _, element := range elements {
-		if element.Version < 0 || d.version > 9007199254740991-element.Version {
-			return d, errors.New("invalid scene version")
-		}
-		d.version += element.Version
 		if element.Type != "image" || element.FileID == "" {
 			continue
 		}
@@ -191,7 +182,7 @@ func prepare(row record, collections map[string]string, fileRows []record, uploa
 		if _, ok := d.files[id]; ok {
 			continue
 		}
-		if !store.ValidID(id) {
+		if !store.ValidFileID(id) {
 			return d, fmt.Errorf("invalid file id %q", id)
 		}
 		f := files[id]
@@ -236,21 +227,9 @@ func prepare(row record, collections map[string]string, fileRows []record, uploa
 		} else if mime == "" {
 			mime = strings.Split(strings.TrimPrefix(dataURL, "data:"), ";")[0]
 		}
-		created := f["created"]
-		if created == nil {
-			t, _ := time.Parse(time.RFC3339Nano, d.created)
-			created = t.UnixMilli()
-		}
-		retrieved := f["lastRetrieved"]
-		if retrieved == nil {
-			retrieved = created
-		}
-		metadata, err := json.Marshal(map[string]any{"id": id, "mimeType": mime, "created": created, "lastRetrieved": retrieved})
-		if err != nil {
+		if err := d.addFile(id, mime, dataURL, f); err != nil {
 			return d, err
 		}
-		d.metadata[id] = metadata
-		d.files[id] = []byte(dataURL)
 	}
 	return d, nil
 }
@@ -310,10 +289,9 @@ func readUpload(root, drawingID, id, ref, mime string) ([]byte, error) {
 }
 
 func Run(s *store.Store, o Options, out io.Writer) error {
-	owner := strings.ToLower(strings.TrimSpace(o.Owner))
-	email, err := mail.ParseAddress(owner)
-	if err != nil || email.Address != owner {
-		return errors.New("valid --owner email required")
+	owner, err := ownerEmail(o.Owner)
+	if err != nil {
+		return err
 	}
 	source, err := filepath.Abs(o.DB)
 	if err != nil {
@@ -348,14 +326,9 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 	}
 	s.Mutation.Lock()
 	defer s.Mutation.Unlock()
-	var uid string
-	err = s.DB.QueryRow("SELECT id FROM users WHERE email=?", owner).Scan(&uid)
-	missing := errors.Is(err, sql.ErrNoRows)
-	if err != nil && !missing {
+	uid, missing, err := lookupOwner(s, owner, o.CreateOwner)
+	if err != nil {
 		return err
-	}
-	if missing && !o.CreateOwner {
-		return errors.New("owner must sign in first or use --create-owner")
 	}
 	plans := []drawing{}
 	skipped := 0
@@ -375,6 +348,10 @@ func Run(s *store.Store, o Options, out io.Writer) error {
 		fmt.Fprintf(out, "Import %q: collection=%q elementsVersion=%d files=%d created=%s updated=%s\n", d.name, d.collection, d.version, len(d.files), d.created, d.updated)
 		plans = append(plans, d)
 	}
+	return commitPlans(s, o, out, owner, uid, missing, plans, skipped)
+}
+
+func commitPlans(s *store.Store, o Options, out io.Writer, owner, uid string, missing bool, plans []drawing, skipped int) error {
 	if o.DryRun {
 		fmt.Fprintf(out, "Dry run: %d scenes; skipped %d; createOwner=%t\n", len(plans), skipped, missing)
 		return nil

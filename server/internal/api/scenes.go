@@ -282,7 +282,7 @@ func (s *Server) duplicateScene(w http.ResponseWriter, r *http.Request) (err err
 		return err
 	}
 	for _, entry := range entries {
-		if !store.ValidID(entry.Name()) || !entry.Type().IsRegular() {
+		if !store.ValidFileID(entry.Name()) || !entry.Type().IsRegular() {
 			continue
 		}
 		var data []byte

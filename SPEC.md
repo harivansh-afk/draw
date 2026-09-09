@@ -173,6 +173,7 @@ Single binary `draw`, frontend embedded via `embed.FS` from `server/web/dist`
 ```
 draw serve                          # default
 draw import-excalidash --db dev.db --uploads DIR --owner EMAIL [--dry-run]
+draw import-dir DIR --owner EMAIL [--create-owner] [--dry-run] [--data-dir DIR]
 draw backup OUT.sqlite [--files DIR] # VACUUM INTO; optional files/ and thumbs/ copy
 ```
 
@@ -304,7 +305,7 @@ Files
 - `GET /api/files/rooms/:roomId/:fileId` → bytes, room read permission, `Cache-Control: private, max-age=31536000, immutable`
 - `PUT /api/files/shareLinks/:jsonId/:fileId` → 204 if the snapshot `jsonId` exists, else 404; existing files are immutable (a repeated PUT keeps the first bytes)
 - `GET /api/files/shareLinks/:jsonId/:fileId` → bytes, `Cache-Control: public, max-age=31536000, immutable`
-File ids are validated as `[A-Za-z0-9_-]{1,64}`; room and snapshot ids as `[a-f0-9]{20}` (upstream also accepts `[a-zA-Z0-9_-]+` for legacy rooms; accept `[A-Za-z0-9_-]{1,64}` for rooms).
+File ids are validated as `[A-Za-z0-9_-]{1,128}` (including 96-character Excalidraw+ export ids); room and snapshot ids as `[a-f0-9]{20}` (upstream also accepts `[a-zA-Z0-9_-]+` for legacy rooms; accept `[A-Za-z0-9_-]{1,64}` for rooms).
 
 Snapshot links (upstream json backend contract)
 - `POST /api/v2/post` raw body ≤ `DRAW_MAX_ROOM_BYTES` → `{ id }` (20 hex). Signed
@@ -411,7 +412,7 @@ room_versions    room_id, rev, scene_version, iv, ciphertext, created_at   PK(ro
 snapshots        id TEXT PK, data BLOB, created_at, ip
 libraries        user_id TEXT PK, data BLOB (JSON), updated_at
 settings         key TEXT PK, value TEXT     -- e.g. first_user_email
-imports          source_id TEXT PK, scene_id TEXT, imported_at TEXT -- ExcaliDash ids
+imports          source_id TEXT PK, scene_id TEXT, imported_at TEXT -- source provenance
 ```
 
 Files on disk: `DATA_DIR/files/rooms/<roomId>/<fileId>`,
