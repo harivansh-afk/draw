@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAtomValue } from "../app-jotai";
 import { api } from "../data/api";
-import { currentUserAtom } from "../data/auth";
+import { avatarInitial, currentUserAtom } from "../data/auth";
 import {
   DASHBOARD_URL,
   SCENE_SIDEBAR_MIN_WIDTH,
@@ -66,12 +66,16 @@ export const relativeTime = (iso: string, now = Date.now()): string => {
 };
 
 const Avatar = ({ name, url }: { name: string; url: string }) => {
-  const initial = (name || "?").trim().charAt(0).toUpperCase();
   return url ? (
-    <img className="scene-sidebar__avatar" src={url} alt="" />
+    <img
+      className="scene-sidebar__avatar"
+      src={url}
+      alt=""
+      referrerPolicy="no-referrer"
+    />
   ) : (
     <span className="scene-sidebar__avatar scene-sidebar__avatar--initial">
-      {initial}
+      {avatarInitial(name)}
     </span>
   );
 };

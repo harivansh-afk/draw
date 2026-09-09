@@ -1,7 +1,8 @@
 import clsx from "clsx";
 import React, { useEffect, useRef, useState } from "react";
 
-import { initials } from "./state";
+import { avatarInitial } from "../data/auth";
+
 import { navigate } from "./router";
 import {
   chevronUpDownIcon,
@@ -264,7 +265,7 @@ export const Avatar = ({ user, size = 28 }: { user: User; size?: number }) => {
       style={style}
       aria-hidden
     >
-      {initials(user.name, user.email)}
+      {avatarInitial(user.name, user.email)}
     </span>
   );
 };
