@@ -3,7 +3,12 @@ import { THEME } from "@excalidraw/common";
 import { getNonDeletedElements } from "@excalidraw/element";
 import throttle from "lodash.throttle";
 
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+import type {
+  AppState,
+  BinaryFiles,
+  ExcalidrawImperativeAPI,
+} from "@excalidraw/excalidraw/types";
 
 import { THUMBNAIL_INTERVAL_MS } from "../app_constants";
 import { api } from "../data/api";
@@ -13,14 +18,55 @@ import { canEditScene, getScene } from "./sceneMode";
 export const THUMBNAIL_WIDTH = 640;
 export const THUMBNAIL_HEIGHT = 400;
 
-const renderThumbnail = async (
-  excalidrawAPI: ExcalidrawImperativeAPI,
-): Promise<Blob | null> => {
-  const appState = excalidrawAPI.getAppState();
-  const elements = getNonDeletedElements(excalidrawAPI.getSceneElements());
+export type ThumbnailSource = {
+  elements: readonly ExcalidrawElement[];
+  appState?: Partial<AppState> | null;
+  files?: BinaryFiles | null;
+};
+
+/** Background and export flags derived from a (possibly partial) app state. */
+export const thumbnailExportState = (appState?: Partial<AppState> | null) => {
+  const theme = appState?.theme === THEME.DARK ? THEME.DARK : THEME.LIGHT;
   const background =
-    appState.viewBackgroundColor ||
-    (appState.theme === THEME.DARK ? "#121212" : "#ffffff");
+    appState?.viewBackgroundColor ||
+    (theme === THEME.DARK ? "#121212" : "#ffffff");
+  return {
+    background,
+    appState: {
+      ...(appState || {}),
+      theme,
+      exportBackground: true,
+      viewBackgroundColor: background,
+      exportWithDarkMode: theme === THEME.DARK,
+      exportScale: 1,
+    } as Partial<AppState>,
+  };
+};
+
+/** Where a rendered scene of the given size lands inside the thumbnail. */
+export const fitThumbnail = (width: number, height: number) => {
+  const scale = Math.min(THUMBNAIL_WIDTH / width, THUMBNAIL_HEIGHT / height, 1);
+  const w = width * scale;
+  const h = height * scale;
+  return {
+    x: (THUMBNAIL_WIDTH - w) / 2,
+    y: (THUMBNAIL_HEIGHT - h) / 2,
+    width: w,
+    height: h,
+  };
+};
+
+/**
+ * Renders a 640×400 PNG of a scene. Used by the editor after saves, by the
+ * dashboard when a card has no thumbnail yet, and by the file import.
+ */
+export const renderSceneThumbnail = async ({
+  elements,
+  appState,
+  files,
+}: ThumbnailSource): Promise<Blob | null> => {
+  const visible = getNonDeletedElements(elements);
+  const { background, appState: exportState } = thumbnailExportState(appState);
 
   const target = document.createElement("canvas");
   target.width = THUMBNAIL_WIDTH;
@@ -32,38 +78,27 @@ const renderThumbnail = async (
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
 
-  if (elements.length) {
+  if (visible.length) {
     const source = await exportToCanvas({
-      elements,
-      appState: {
-        ...appState,
-        exportBackground: true,
-        viewBackgroundColor: background,
-        exportWithDarkMode: appState.theme === THEME.DARK,
-        exportScale: 1,
-      },
-      files: excalidrawAPI.getFiles(),
+      elements: visible,
+      appState: exportState,
+      files: files || {},
       maxWidthOrHeight: THUMBNAIL_WIDTH * 2,
       exportPadding: 16,
     });
-    const scale = Math.min(
-      THUMBNAIL_WIDTH / source.width,
-      THUMBNAIL_HEIGHT / source.height,
-      1,
-    );
-    const width = source.width * scale;
-    const height = source.height * scale;
-    ctx.drawImage(
-      source,
-      (THUMBNAIL_WIDTH - width) / 2,
-      (THUMBNAIL_HEIGHT - height) / 2,
-      width,
-      height,
-    );
+    const box = fitThumbnail(source.width, source.height);
+    ctx.drawImage(source, box.x, box.y, box.width, box.height);
   }
 
   return new Promise((resolve) => target.toBlob(resolve, "image/png"));
 };
+
+const renderThumbnail = (excalidrawAPI: ExcalidrawImperativeAPI) =>
+  renderSceneThumbnail({
+    elements: excalidrawAPI.getSceneElements(),
+    appState: excalidrawAPI.getAppState(),
+    files: excalidrawAPI.getFiles(),
+  });
 
 const upload = async (excalidrawAPI: ExcalidrawImperativeAPI) => {
   const scene = getScene();

@@ -8,6 +8,13 @@ import {
   isExcalidrawFile,
 } from "../importScene";
 
+// jsdom has no real canvas; the render helper has its own tests
+vi.mock("../../scene/thumbnail", () => ({
+  renderSceneThumbnail: vi.fn(
+    async () => new Blob(["png"], { type: "image/png" }),
+  ),
+}));
+
 const base64ToBytes = (base64: string) =>
   Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
@@ -87,6 +94,9 @@ describe("importSceneFile", () => {
         if (url.startsWith("/api/files/") && init.method === "PUT") {
           return new Response(null, { status: 204 });
         }
+        if (url.endsWith("/thumbnail") && init.method === "PUT") {
+          return new Response(null, { status: 204 });
+        }
         return new Response(JSON.stringify({ error: "not_found" }), {
           status: 404,
         });
@@ -130,6 +140,10 @@ describe("importSceneFile", () => {
     const scene = await importSceneFile(file, "col-1");
     expect(scene.name).toBe("My diagram");
     expect(scene.collectionId).toBe("col-1");
+    expect(scene.hasThumbnail).toBe(true);
+    const thumb = calls.find((c) => c.url.endsWith("/thumbnail"));
+    expect(thumb?.method).toBe("PUT");
+    expect(thumb?.url).toBe("/api/scenes/abcdef0123456789abcd/thumbnail");
 
     const create = calls.find((c) => c.url === "/api/scenes");
     expect(JSON.parse(create!.body)).toEqual({
