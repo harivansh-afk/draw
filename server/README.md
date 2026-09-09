@@ -100,7 +100,8 @@ DRAW_DATA_DIR=/var/lib/draw ./draw import-excalidash \
 DRAW_DATA_DIR=/var/lib/draw ./draw import-excalidash \
   --db /path/to/excalidash/dev.db --uploads /path/to/uploads \
   --owner owner@example.com
-DRAW_DATA_DIR=/var/lib/draw ./draw backup /path/to/new-backup.sqlite
+DRAW_DATA_DIR=/var/lib/draw ./draw backup /path/to/new-backup.sqlite \
+  --files /path/to/new-media-backup
 ```
 
 Sign in once before importing, or pass --create-owner. That placeholder identity
@@ -111,14 +112,28 @@ validates all drawings/files before committing. It supports inline data URLs,
 local upload references, and DrawingFile database blobs. External/S3 files must
 be present in the supplied uploads tree; no remote resources are fetched.
 Unknown layouts, unsupported drawing engines, and missing images fail explicitly.
-Each run imports new scenes; it does not deduplicate repeated imports.
+Each run skips drawings whose ExcaliDash source id is already in the imports table
+and reports imported/skipped counts (also in dry runs). Provenance is committed
+with the scene and survives deletion, so rerunning cannot resurrect deleted imports.
+Ids identify drawings across source database paths; an already-imported drawing
+is skipped even if its old uploads are no longer available. Existing imports made
+before this migration have no recorded source id and cannot be deduplicated retroactively.
 --dry-run creates no users/scenes/files, though opening a new destination initializes
 its database schema. --data-dir also overrides the import destination.
 
-Backup uses VACUUM INTO and refuses an existing output file. It snapshots SQLite;
-back up DATA_DIR/files, DATA_DIR/thumbs and session.key separately for a full restore.
+Backup uses VACUUM INTO and refuses an existing output file. Optional --files DIR
+creates a new directory containing files/ and thumbs/, using hard links or copying
+across filesystems. The directory must be outside DATA_DIR and must not exist.
+Published files are replaced atomically, so later uploads cannot change linked
+backups. Restore those trees into DATA_DIR alongside the database; preserve
+session.key separately. The database and media are captured separately: quiesce
+writes if the nightly timer requires a matching full restore point. A file-backup
+failure returns an error while leaving the completed database backup in place.
+
 Cleanup runs at startup and hourly: expired sessions, expired trash, ad-hoc rooms
-idle for 90 days, and snapshots older than 365 days.
+idle for 90 days, and snapshots older than 365 days. Orphan files/rooms directories
+with neither a scene nor a room row are removed only when the newest mtime in the
+directory is older than 90 days, including file and directory mtimes.
 
 ## Contract choices and validation
 

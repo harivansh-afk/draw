@@ -312,7 +312,7 @@ func (s *Store) Purge(now time.Time, retention int, kick func(string)) error {
 			}
 		}
 	}
-	return nil
+	return s.purgeOrphanRoomFiles(now.AddDate(0, 0, -90))
 }
 func (s *Store) Jobs(ctx context.Context, retention int, kick func(string), report func(error)) {
 	run := func() {

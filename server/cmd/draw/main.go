@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,8 +46,17 @@ func run(args []string, log *slog.Logger) error {
 		}
 		return serve(c, log)
 	case "backup":
-		if len(args) != 1 {
-			return errors.New("usage: draw backup OUT.sqlite")
+		f := flag.NewFlagSet(command, flag.ContinueOnError)
+		files := f.String("files", "", "copy files and thumbnails to a new directory")
+		// Accept both backup OUT.sqlite --files DIR and flags before the output path.
+		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			args = append(append([]string{}, args[1:]...), args[0])
+		}
+		if err := f.Parse(args); err != nil {
+			return err
+		}
+		if f.NArg() != 1 || f.Arg(0) == "" {
+			return errors.New("usage: draw backup OUT.sqlite [--files DIR]")
 		}
 		c, err := config.Load(nil)
 		if err != nil {
@@ -57,7 +67,15 @@ func run(args []string, log *slog.Logger) error {
 			return err
 		}
 		defer s.Close()
-		return s.Backup(args[0])
+		if err := s.Backup(f.Arg(0)); err != nil {
+			return err
+		}
+		if *files != "" {
+			if err := s.BackupFiles(*files); err != nil {
+				return fmt.Errorf("database backup completed, file backup failed: %w", err)
+			}
+		}
+		return nil
 	case "import-excalidash":
 		f := flag.NewFlagSet(command, flag.ContinueOnError)
 		var o importer.Options

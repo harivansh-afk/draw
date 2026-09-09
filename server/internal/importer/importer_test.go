@@ -102,6 +102,29 @@ func TestImportSchemaVariants(t *testing.T) {
 			if err = json.Unmarshal(metadata, &m); err != nil || m["id"] != "file1" {
 				t.Fatal(string(metadata), err)
 			}
+			if err := os.RemoveAll(uploads); err != nil {
+				t.Fatal(err)
+			}
+			out.Reset()
+			if err := Run(s, o, &out); err != nil {
+				t.Fatal("repeat import must skip missing original uploads", err)
+			}
+			if !strings.Contains(out.String(), "Imported 0 scenes; skipped 1") {
+				t.Fatal(out.String())
+			}
+			if err := s.DB.QueryRow("SELECT count(*) FROM scenes").Scan(&n); err != nil || n != 1 {
+				t.Fatal("repeat import duplicated scenes", n, err)
+			}
+			var importedID string
+			if err := s.DB.QueryRow("SELECT scene_id FROM imports WHERE source_id='drawing'").Scan(&importedID); err != nil || importedID != id {
+				t.Fatal("missing import provenance", importedID, err)
+			}
+			o.DryRun = true
+			out.Reset()
+			if err := Run(s, o, &out); err != nil || !strings.Contains(out.String(), "Dry run: 0 scenes; skipped 1") {
+				t.Fatal(out.String(), err)
+			}
+			o.DryRun = false
 			c, err := config.Load(nil)
 			if err != nil {
 				t.Fatal(err)
