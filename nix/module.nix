@@ -147,6 +147,7 @@ in
 
     systemd.services.draw-backup = mkIf cfg.backup.enable {
       description = "Back up the draw SQLite database";
+      environment.DRAW_DATA_DIR = "/var/lib/draw";
       serviceConfig = {
         Type = "oneshot";
         User = "draw";
@@ -160,10 +161,12 @@ in
         pkgs.sqlite
       ];
       script = ''
-        out="${cfg.backup.directory}/$(date -u +%Y-%m-%dT%H-%M-%SZ).sqlite"
-        ${lib.getExe cfg.package} backup "$out"
+        stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+        out="${cfg.backup.directory}/$stamp.sqlite"
+        ${lib.getExe cfg.package} backup "$out" --files "${cfg.backup.directory}/$stamp-files"
         test "$(sqlite3 "$out" 'PRAGMA quick_check;')" = ok
         find ${cfg.backup.directory} -maxdepth 1 -type f -name '*.sqlite' -mtime +${toString cfg.backup.retentionDays} -delete
+        find ${cfg.backup.directory} -maxdepth 1 -type d -name '*-files' -mtime +${toString cfg.backup.retentionDays} -exec rm -rf {} +
       '';
     };
 

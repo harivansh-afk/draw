@@ -43,7 +43,7 @@
             ];
             offlineCache = pkgs.fetchYarnDeps {
               yarnLock = "${webSrc}/yarn.lock";
-              hash = "sha256-Fib09SBYwALGpa00t+f+xyFGbu+6hxIUME2M5wN6+5o=";
+              hash = "sha256-bIaMGSXmOBMpXsLY8hLzJjtmURCnAPj+nq0KfroNmso=";
             };
             yarnBuildScript = "build:app:docker";
             env.VITE_APP_GIT_SHA = self.shortRev or self.dirtyShortRev or "dev";
