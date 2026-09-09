@@ -36,12 +36,16 @@ const (
 var ErrNotAllowed = errors.New("account not allowed")
 
 type identityKey struct{}
+
 type Identity struct {
 	User        *store.User
 	SessionHash string
 }
 
-func Current(r *http.Request) Identity { v, _ := r.Context().Value(identityKey{}).(Identity); return v }
+func Current(r *http.Request) Identity {
+	v, _ := r.Context().Value(identityKey{}).(Identity)
+	return v
+}
 
 type Auth struct {
 	Store    *store.Store
@@ -71,6 +75,7 @@ func New(ctx context.Context, s *store.Store, c config.Config) (*Auth, error) {
 	a.verifier = provider.Verifier(&oidc.Config{ClientID: c.ClientID})
 	return a, nil
 }
+
 func readKey(path string) ([]byte, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err
@@ -100,10 +105,16 @@ func readKey(path string) ([]byte, error) {
 	}
 	return b, nil
 }
-func Hash(token string) string { h := sha256.Sum256([]byte(token)); return hex.EncodeToString(h[:]) }
+
+func Hash(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
 func (a *Auth) cookie(w http.ResponseWriter, name, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", HttpOnly: true, Secure: strings.HasPrefix(a.Config.BaseURL, "https://"), SameSite: http.SameSiteLaxMode, MaxAge: maxAge, Expires: time.Now().Add(time.Duration(maxAge) * time.Second)})
 }
+
 func (a *Auth) Identify(w http.ResponseWriter, r *http.Request) (*http.Request, error) {
 	c, err := r.Cookie(CookieName)
 	if err != nil {
@@ -139,6 +150,7 @@ func (a *Auth) Identify(w http.ResponseWriter, r *http.Request) (*http.Request, 
 	}
 	return r.WithContext(context.WithValue(r.Context(), identityKey{}, Identity{&u, hash})), nil
 }
+
 func (a *Auth) Login(issuer, subject, email, name, avatar string) (store.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	parsed, err := mail.ParseAddress(email)
@@ -208,6 +220,7 @@ func (a *Auth) Login(issuer, subject, email, name, avatar string) (store.User, e
 	u.AvatarURL = avatar
 	return u, tx.Commit()
 }
+
 func (a *Auth) Session(w http.ResponseWriter, u store.User) error {
 	token := crypt.Token()
 	now := store.Now()
@@ -217,6 +230,7 @@ func (a *Auth) Session(w http.ResponseWriter, u store.User) error {
 	}
 	return err
 }
+
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) error {
 	if c, err := r.Cookie(CookieName); err == nil {
 		if _, err = a.Store.DB.Exec("DELETE FROM sessions WHERE token_hash=?", Hash(c.Value)); err != nil {
@@ -226,6 +240,7 @@ func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) error {
 	a.cookie(w, CookieName, "", -1)
 	return nil
 }
+
 func CSRF(r *http.Request, origin string) bool {
 	switch r.Method {
 	case "POST", "PUT", "PATCH", "DELETE":
@@ -234,6 +249,7 @@ func CSRF(r *http.Request, origin string) bool {
 	}
 	return true
 }
+
 func SafeNext(next string) string {
 	u, err := url.Parse(next)
 	if err != nil || !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.ContainsAny(next, "\\\r\n") || u.IsAbs() || u.Host != "" {
@@ -254,6 +270,7 @@ func (a *Auth) sign(b []byte) string {
 	m.Write(b)
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
+
 func (a *Auth) Start(w http.ResponseWriter, r *http.Request) {
 	if a.oauth == nil {
 		http.Redirect(w, r, "/login?error=oidc", 302)
@@ -265,8 +282,11 @@ func (a *Auth) Start(w http.ResponseWriter, r *http.Request) {
 	a.cookie(w, "draw_oidc", encoded+"."+a.sign([]byte(encoded)), 600)
 	http.Redirect(w, r, a.oauth.AuthCodeURL(f.State, oidc.Nonce(f.Nonce)), 302)
 }
+
 func (a *Auth) Callback(w http.ResponseWriter, r *http.Request) {
-	fail := func(reason string) { http.Redirect(w, r, "/login?error="+reason, 302) }
+	fail := func(reason string) {
+		http.Redirect(w, r, "/login?error="+reason, 302)
+	}
 	c, err := r.Cookie("draw_oidc")
 	a.cookie(w, "draw_oidc", "", -1)
 	if err != nil || a.oauth == nil {

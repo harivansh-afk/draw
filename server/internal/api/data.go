@@ -26,24 +26,23 @@ func (s *Server) getRoom(w http.ResponseWriter, r *http.Request) error {
 	if err := s.roomAccess(r, false); err != nil {
 		return err
 	}
-	var room Room
-	var err error
-	if rev := r.PathValue("rev"); rev != "" {
-		n, e := strconv.ParseInt(rev, 10, 64)
-		if e != nil || n < 1 {
+	var rev int64
+	if value := r.PathValue("rev"); value != "" {
+		var err error
+		rev, err = strconv.ParseInt(value, 10, 64)
+		if err != nil || rev < 1 {
 			return bad("Invalid revision")
 		}
-		err = s.Store.DB.QueryRow("SELECT rev,scene_version,iv,ciphertext FROM room_versions WHERE room_id=? AND rev=?", r.PathValue("roomId"), n).Scan(&room.Rev, &room.SceneVersion, &room.IV, &room.Ciphertext)
-	} else {
-		err = s.Store.DB.QueryRow("SELECT rev,scene_version,iv,ciphertext FROM rooms WHERE id=?", r.PathValue("roomId")).Scan(&room.Rev, &room.SceneVersion, &room.IV, &room.Ciphertext)
 	}
+	room, err := s.Store.Room(r.PathValue("roomId"), rev)
 	if err != nil {
 		return err
 	}
 	w.Header().Set("ETag", fmt.Sprintf("%q", strconv.FormatInt(room.Rev, 10)))
-	JSON(w, 200, room)
+	JSON(w, 200, Room{Rev: room.Rev, SceneVersion: room.SceneVersion, IV: room.IV, Ciphertext: room.Ciphertext})
 	return nil
 }
+
 func (s *Server) putRoom(w http.ResponseWriter, r *http.Request) error {
 	var v struct {
 		SceneVersion   int64 `json:"sceneVersion"`
@@ -61,8 +60,8 @@ func (s *Server) putRoom(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	previous := int64(0)
-	if r.Header.Get("If-None-Match") == "*" && r.Header.Get("If-Match") == "" {
-	} else {
+	create := r.Header.Get("If-None-Match") == "*" && r.Header.Get("If-Match") == ""
+	if !create {
 		h := r.Header.Get("If-Match")
 		if r.Header.Get("If-None-Match") != "" || len(h) < 3 || h[0] != '"' || h[len(h)-1] != '"' {
 			return failure{412, "precondition_failed", "A matching room revision is required"}
@@ -73,7 +72,7 @@ func (s *Server) putRoom(w http.ResponseWriter, r *http.Request) error {
 			return failure{412, "precondition_failed", "Invalid revision"}
 		}
 	}
-	room := Room{SceneVersion: v.SceneVersion, IV: v.IV, Ciphertext: v.Ciphertext}
+	room := store.Room{SceneVersion: v.SceneVersion, IV: v.IV, Ciphertext: v.Ciphertext}
 	if err := s.saveRoom(r.PathValue("roomId"), userID(r), room, previous); err != nil {
 		return err
 	}
@@ -85,7 +84,8 @@ func (s *Server) putRoom(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, status, map[string]any{"rev": previous + 1})
 	return nil
 }
-func (s *Server) saveRoom(id, uid string, room Room, previous int64) error {
+
+func (s *Server) saveRoom(id, uid string, room store.Room, previous int64) error {
 	tx, err := s.Store.DB.Begin()
 	if err != nil {
 		return err
@@ -124,6 +124,7 @@ func (s *Server) saveRoom(id, uid string, room Room, previous int64) error {
 	}
 	return tx.Commit()
 }
+
 func (s *Server) roomVersions(w http.ResponseWriter, r *http.Request) error {
 	if err := s.roomAccess(r, false); err != nil {
 		return err
@@ -153,6 +154,7 @@ func (s *Server) roomVersions(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, map[string]any{"versions": versions})
 	return nil
 }
+
 func (s *Server) fileAccess(r *http.Request, write bool) error {
 	kind, id, file := r.PathValue("kind"), r.PathValue("roomId"), r.PathValue("fileId")
 	if !store.ValidID(file) {
@@ -173,6 +175,7 @@ func (s *Server) fileAccess(r *http.Request, write bool) error {
 	}
 	return nil
 }
+
 func (s *Server) putFile(w http.ResponseWriter, r *http.Request) error {
 	b, err := body(w, r, s.Config.MaxFileBytes)
 	if err != nil {
@@ -198,6 +201,7 @@ func (s *Server) putFile(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(204)
 	return nil
 }
+
 func (s *Server) getFile(w http.ResponseWriter, r *http.Request) error {
 	if err := s.fileAccess(r, false); err != nil {
 		return err
@@ -208,6 +212,7 @@ func (s *Server) getFile(w http.ResponseWriter, r *http.Request) error {
 	}
 	return disk(w, r, s.Store.File(r.PathValue("kind"), r.PathValue("roomId"), r.PathValue("fileId")), "application/octet-stream", cache, false)
 }
+
 func disk(w http.ResponseWriter, r *http.Request, path, kind, cache string, etag bool) error {
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
@@ -229,6 +234,7 @@ func disk(w http.ResponseWriter, r *http.Request, path, kind, cache string, etag
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 	return nil
 }
+
 func (s *Server) putThumbnail(w http.ResponseWriter, r *http.Request) error {
 	if r.Header.Get("Content-Type") != "image/png" {
 		return bad("Expected image/png")
@@ -255,6 +261,7 @@ func (s *Server) putThumbnail(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(204)
 	return nil
 }
+
 func (s *Server) getThumbnail(w http.ResponseWriter, r *http.Request) error {
 	scene, _, err := s.sceneAccess(r, false, false)
 	if err != nil {
@@ -262,6 +269,7 @@ func (s *Server) getThumbnail(w http.ResponseWriter, r *http.Request) error {
 	}
 	return disk(w, r, s.Store.Thumb(scene.ID), "image/png", "private, max-age=60", true)
 }
+
 func (s *Server) postSnapshot(w http.ResponseWriter, r *http.Request) error {
 	b, err := body(w, r, s.Config.MaxRoomBytes)
 	if err != nil {
@@ -279,6 +287,7 @@ func (s *Server) postSnapshot(w http.ResponseWriter, r *http.Request) error {
 	JSON(w, 200, map[string]string{"id": id})
 	return nil
 }
+
 func (s *Server) getSnapshot(w http.ResponseWriter, r *http.Request) error {
 	if !store.SnapshotID(r.PathValue("id")) {
 		return bad("Invalid snapshot id")
@@ -292,6 +301,7 @@ func (s *Server) getSnapshot(w http.ResponseWriter, r *http.Request) error {
 	_, _ = w.Write(b)
 	return nil
 }
+
 func (s *Server) getLibrary(w http.ResponseWriter, r *http.Request) error {
 	uid, err := requireUser(r)
 	if err != nil {
@@ -310,6 +320,7 @@ func (s *Server) getLibrary(w http.ResponseWriter, r *http.Request) error {
 	_, _ = w.Write(b)
 	return nil
 }
+
 func (s *Server) putLibrary(w http.ResponseWriter, r *http.Request) error {
 	uid, err := requireUser(r)
 	if err != nil {

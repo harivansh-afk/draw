@@ -137,7 +137,9 @@ func TestOIDCFlow(t *testing.T) {
 	var logs bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() { slog.SetDefault(previous) })
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
 	cookie, state = start()
 	if rr = callback(cookie, state); rr.Header().Get("Location") != "/login?error=not_allowed" {
 		t.Fatal(rr.Header())
@@ -173,6 +175,7 @@ func TestOIDCFlow(t *testing.T) {
 		t.Fatal(info, err)
 	}
 }
+
 func TestFirstUserAndAllowlist(t *testing.T) {
 	c, err := config.Load(nil)
 	if err != nil {
@@ -196,7 +199,11 @@ func TestFirstUserAndAllowlist(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, email := range []string{"a@example.com", "b@example.com"} {
 		wg.Add(1)
-		go func() { defer wg.Done(); _, err := a.Login("issuer", email, email, email, ""); results <- err }()
+		go func() {
+			defer wg.Done()
+			_, err := a.Login("issuer", email, email, email, "")
+			results <- err
+		}()
 	}
 	wg.Wait()
 	close(results)
@@ -232,6 +239,7 @@ func TestFirstUserAndAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
 func TestSafeNextCSRF(t *testing.T) {
 	for _, s := range []string{"https://evil.example", "//evil.example", "/\\evil.example", "javascript:bad", "/\r\nevil"} {
 		if SafeNext(s) != "/" {

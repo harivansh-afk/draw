@@ -144,6 +144,7 @@ func TestImportSchemaVariants(t *testing.T) {
 		})
 	}
 }
+
 func TestMissingFileAndTraversal(t *testing.T) {
 	dir := t.TempDir()
 	row := record{"id": "d", "name": "D", "elements": `[{"type":"image","version":1,"fileId":"img"}]`, "files": `{"img":{"dataURL":"/uploads/../secret"}}`}
@@ -165,6 +166,7 @@ func TestMissingFileAndTraversal(t *testing.T) {
 		t.Fatal("accepted symlink escape")
 	}
 }
+
 func TestDatabaseFiles(t *testing.T) {
 	row := record{"id": "d", "name": "D", "elements": `[{"type":"image","version":1,"fileId":"img"}]`, "files": `{"img":{"dataURL":"/api/files/d/img","mimeType":"image/png"}}`}
 	files := []record{{"drawingid": "d", "fileid": "img", "data": []byte("hello")}}

@@ -26,9 +26,13 @@ type Options struct {
 	DB, Uploads, Owner  string
 	DryRun, CreateOwner bool
 }
+
 type record map[string]any
 
-func norm(s string) string { return strings.ToLower(strings.ReplaceAll(s, "_", "")) }
+func norm(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, "_", ""))
+}
+
 func (r record) get(keys ...string) any {
 	for _, k := range keys {
 		if v, ok := r[norm(k)]; ok && v != nil {
@@ -37,6 +41,7 @@ func (r record) get(keys ...string) any {
 	}
 	return nil
 }
+
 func str(v any) string {
 	switch v := v.(type) {
 	case nil:
@@ -49,7 +54,11 @@ func str(v any) string {
 		return fmt.Sprint(v)
 	}
 }
-func quote(s string) string { return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\"" }
+
+func quote(s string) string {
+	return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
+}
+
 func table(db *sql.DB, name string, out io.Writer) ([]record, error) {
 	var actual, schema string
 	err := db.QueryRow("SELECT name,sql FROM sqlite_master WHERE type='table' AND lower(name)=lower(?)", name).Scan(&actual, &schema)
@@ -84,6 +93,7 @@ func table(db *sql.DB, name string, out io.Writer) ([]record, error) {
 	}
 	return result, rows.Err()
 }
+
 func timestamp(v any, fallback string) (string, error) {
 	if v == nil || str(v) == "" {
 		return fallback, nil
@@ -244,6 +254,7 @@ func prepare(row record, collections map[string]string, fileRows []record, uploa
 	}
 	return d, nil
 }
+
 func readUpload(root, drawingID, id, ref, mime string) ([]byte, error) {
 	if root == "" {
 		return nil, errors.New("uploads directory is required")
@@ -297,6 +308,7 @@ func readUpload(root, drawingID, id, ref, mime string) ([]byte, error) {
 	}
 	return nil, fmt.Errorf("upload not found for %s", id)
 }
+
 func Run(s *store.Store, o Options, out io.Writer) error {
 	owner := strings.ToLower(strings.TrimSpace(o.Owner))
 	email, err := mail.ParseAddress(owner)

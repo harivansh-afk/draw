@@ -58,9 +58,14 @@ func setup(t *testing.T, open bool) *fixture {
 	app := &Server{Store: s, Auth: a, Config: c, Hub: hub, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	ts := httptest.NewServer(app.Handler(fstest.MapFS{"index.html": {Data: []byte("<html>draw</html>")}, "assets/a-123.js": {Data: []byte("asset")}, "fonts/a.woff2": {Data: []byte("font")}, "locales/en.json": {Data: []byte("{}")}, "sw.js": {Data: []byte("sw")}, "manifest.webmanifest": {Data: []byte("{}")}}))
 	f := &fixture{t, app, ts}
-	t.Cleanup(func() { hub.Close(); ts.Close(); s.Close() })
+	t.Cleanup(func() {
+		hub.Close()
+		ts.Close()
+		s.Close()
+	})
 	return f
 }
+
 func (f *fixture) request(method, path string, data any, cookie string, headers map[string]string) *http.Response {
 	f.t.Helper()
 	var b []byte
@@ -90,9 +95,12 @@ func (f *fixture) request(method, path string, data any, cookie string, headers 
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	f.t.Cleanup(func() { resp.Body.Close() })
+	f.t.Cleanup(func() {
+		resp.Body.Close()
+	})
 	return resp
 }
+
 func status(t *testing.T, r *http.Response, want int) {
 	t.Helper()
 	if r.StatusCode != want {
@@ -100,6 +108,7 @@ func status(t *testing.T, r *http.Response, want int) {
 		t.Fatalf("status %d want %d: %s", r.StatusCode, want, b)
 	}
 }
+
 func readJSON[T any](t *testing.T, r *http.Response) T {
 	t.Helper()
 	defer r.Body.Close()
@@ -109,6 +118,7 @@ func readJSON[T any](t *testing.T, r *http.Response) T {
 	}
 	return v
 }
+
 func (f *fixture) login(email string) string {
 	r := f.request("POST", "/api/auth/dev", map[string]string{"email": email}, "", nil)
 	status(f.t, r, 204)
@@ -131,6 +141,7 @@ func (f *fixture) scene(cookie string) sceneAccess {
 	status(f.t, r, 201)
 	return readJSON[sceneAccess](f.t, r)
 }
+
 func TestAuthAllowlistCSRF(t *testing.T) {
 	f := setup(t, false)
 	status(t, f.request("POST", "/api/auth/dev", map[string]string{"email": "owner@example.com"}, "", map[string]string{"Origin": ""}), 403)
@@ -159,6 +170,7 @@ func TestAuthAllowlistCSRF(t *testing.T) {
 	status(t, f.request("POST", "/api/auth/logout", nil, cookie, map[string]string{"Origin": "", "Sec-Fetch-Site": "same-origin"}), 204)
 	status(t, f.request("GET", "/api/auth/me", nil, cookie, nil), 401)
 }
+
 func TestScenesPermissionsCollectionsLibrary(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -231,6 +243,7 @@ func TestScenesPermissionsCollectionsLibrary(t *testing.T) {
 	status(t, f.request("DELETE", base+"?permanent=1", nil, owner, nil), 204)
 	status(t, f.request("GET", base, nil, owner, nil), 404)
 }
+
 func TestRoomsHistoryConcurrency(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -294,6 +307,7 @@ func TestRoomsHistoryConcurrency(t *testing.T) {
 	f.s.Config.MaxRoomBytes = 30
 	status(t, f.request("PUT", path, payload, owner, map[string]string{"If-Match": "\"3\""}), 413)
 }
+
 func TestFilesSnapshotsThumbnailsDuplicate(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")
@@ -372,6 +386,7 @@ func TestFilesSnapshotsThumbnailsDuplicate(t *testing.T) {
 		t.Fatal("thumbnail remains")
 	}
 }
+
 func TestStaticAndLimits(t *testing.T) {
 	f := setup(t, true)
 	for _, tt := range []struct {
@@ -408,6 +423,7 @@ func TestStaticAndLimits(t *testing.T) {
 	}
 	status(t, f.request("GET", "/api/health", nil, "", nil), 200)
 }
+
 func TestNoPartialDuplicate(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")

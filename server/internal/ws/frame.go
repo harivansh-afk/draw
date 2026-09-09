@@ -10,6 +10,7 @@ type Message struct {
 	Event string
 	Args  []any
 }
+
 type header struct {
 	Event  string            `json:"e"`
 	Args   []json.RawMessage `json:"a"`
@@ -50,6 +51,7 @@ func Encode(event string, args ...any) []byte {
 	}
 	return out
 }
+
 func Decode(frame []byte) (Message, error) {
 	bad := errors.New("bad message")
 	if len(frame) < 5 || frame[0] != 1 {

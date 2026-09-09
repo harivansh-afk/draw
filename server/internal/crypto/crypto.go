@@ -16,9 +16,18 @@ import (
 	"io"
 )
 
-func ID() string    { return hex.EncodeToString(random(10)) }
-func Token() string { return base64.RawURLEncoding.EncodeToString(random(32)) }
-func Key() string   { return base64.RawURLEncoding.EncodeToString(random(16)) }
+func ID() string {
+	return hex.EncodeToString(random(10))
+}
+
+func Token() string {
+	return base64.RawURLEncoding.EncodeToString(random(32))
+}
+
+func Key() string {
+	return base64.RawURLEncoding.EncodeToString(random(16))
+}
+
 func random(n int) []byte {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
@@ -26,6 +35,7 @@ func random(n int) []byte {
 	}
 	return b
 }
+
 func aead(key string) (cipher.AEAD, error) {
 	b, err := base64.RawURLEncoding.DecodeString(key)
 	if err != nil || len(b) != 16 {
@@ -37,6 +47,7 @@ func aead(key string) (cipher.AEAD, error) {
 	}
 	return cipher.NewGCM(block)
 }
+
 func Encrypt(key string, data []byte) (iv, ciphertext []byte, err error) {
 	a, err := aead(key)
 	if err != nil {
@@ -45,6 +56,7 @@ func Encrypt(key string, data []byte) (iv, ciphertext []byte, err error) {
 	iv = random(12)
 	return iv, a.Seal(nil, iv, data, nil), nil
 }
+
 func Decrypt(key string, iv, ciphertext []byte) ([]byte, error) {
 	a, err := aead(key)
 	if err != nil {
@@ -55,6 +67,7 @@ func Decrypt(key string, iv, ciphertext []byte) ([]byte, error) {
 	}
 	return a.Open(nil, iv, ciphertext, nil)
 }
+
 func Concat(chunks ...[]byte) []byte {
 	b := binary.BigEndian.AppendUint32(nil, 1)
 	for _, c := range chunks {
@@ -63,6 +76,7 @@ func Concat(chunks ...[]byte) []byte {
 	}
 	return b
 }
+
 func Split(b []byte, count int) ([][]byte, error) {
 	if len(b) < 4 || binary.BigEndian.Uint32(b[:4]) != 1 {
 		return nil, errors.New("invalid envelope version")
@@ -110,6 +124,7 @@ func Compress(key string, metadata json.RawMessage, data []byte) ([]byte, error)
 	}
 	return Concat(encodingMetadata, iv, ct), nil
 }
+
 func outer(key string, b []byte) ([][]byte, []byte, error) {
 	c, err := Split(b, 3)
 	if err != nil {
@@ -128,6 +143,7 @@ func outer(key string, b []byte) ([][]byte, []byte, error) {
 	p, err := Decrypt(key, c[1], c[2])
 	return c, p, err
 }
+
 func Decompress(key string, b []byte) (metadata json.RawMessage, data []byte, err error) {
 	c, p, err := outer(key, b)
 	if err != nil {
@@ -158,6 +174,7 @@ func Decompress(key string, b []byte) (metadata json.RawMessage, data []byte, er
 	}
 	return inner[0], inner[1], nil
 }
+
 func Reencrypt(oldKey, newKey string, b []byte) ([]byte, error) {
 	c, p, err := outer(oldKey, b)
 	if err != nil {

@@ -46,12 +46,13 @@ Production needs DRAW_BASE_URL=https://draw.harivan.sh, a writable DRAW_DATA_DIR
 OIDC_CLIENT_ID and OIDC_CLIENT_SECRET. Set DRAW_TRUST_PROXY=1 behind Caddy, which
 must supply trusted forwarding headers. Client IP selection prefers CF-Connecting-IP,
 then the rightmost valid X-Forwarded-For IP after stripping private/loopback hops.
-The proxy must overwrite these headers with trusted values. Leave DRAW_DEV_LOGIN disabled. DRAW_OPEN_SIGNUP
-overrides the allowlist. session.key is created as 32 random bytes with mode 0600.
+The proxy must overwrite these headers with trusted values. Leave DRAW_DEV_LOGIN
+disabled. DRAW_OPEN_SIGNUP overrides the allowlist. session.key is created as 32 random bytes with mode 0600.
 
 The draw_session cookie is HttpOnly, SameSite=Lax, Path=/, Secure for HTTPS, with
-30-day sliding expiry, refreshed only after last_seen_at is older than one hour. Only its SHA-256 hash is stored. draw_oidc is a signed,
-10-minute state/nonce/next cookie used during login; next fragments are stripped. API responses default to
+30-day sliding expiry, refreshed only after last_seen_at is older than one hour.
+Only its SHA-256 hash is stored. draw_oidc is a signed, 10-minute state/nonce/next
+cookie used during login; next fragments are stripped. API responses default to
 no-store; files, snapshots and thumbnails override this as specified.
 
 POST/PUT/PATCH/DELETE require either a matching Origin or Sec-Fetch-Site:
@@ -79,7 +80,8 @@ for the upstream export client. Snapshot files are immutable: repeated PUTs retu
 registered explicitly for hosts without /etc/mime.types.
 
 OIDC email collisions with another subject are logged and return not_allowed;
-issuer+subject remains the identity key. OIDC failures redirect to /login?error=oidc or /login?error=not_allowed.
+issuer+subject remains the identity key. OIDC failures redirect to
+/login?error=oidc or /login?error=not_allowed.
 WebSocket error events contain forbidden or bad_message. Forbidden joins and
 revoked access close with 4403; permanent deletion and trash purging evict members
 with 4403 immediately. Shutdown closes with 1001. Anonymous ad-hoc peers can
@@ -87,8 +89,7 @@ broadcast before the first save; HTTP creation still requires a signed-in user.
 Each receiver is limited to 128 queued frames and 16 MiB including in-flight writes;
 broadcasts share one encoded frame. Volatile traffic drops under pressure, while
 regular traffic disconnects slow receivers. Permission queries do not hold the
-hub mutex. All frames use the
-binary version-1 transport, including hello and init-room. Room saves require
+hub mutex. All frames use the binary version-1 transport, including hello and init-room. Room saves require
 If-None-Match: * or If-Match: "<rev>"; the returned rev and ETag advance atomically.
 
 ## Import and backup
@@ -117,7 +118,8 @@ and reports imported/skipped counts (also in dry runs). Provenance is committed
 with the scene and survives deletion, so rerunning cannot resurrect deleted imports.
 Ids identify drawings across source database paths; an already-imported drawing
 is skipped even if its old uploads are no longer available. Existing imports made
-before this migration have no recorded source id and cannot be deduplicated retroactively.
+before this migration have no recorded source id and cannot be deduplicated
+retroactively.
 --dry-run creates no users/scenes/files, though opening a new destination initializes
 its database schema. --data-dir also overrides the import destination.
 

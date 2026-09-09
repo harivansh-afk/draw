@@ -32,6 +32,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 func run(args []string, log *slog.Logger) error {
 	command := "serve"
 	if len(args) > 0 && (args[0] == "" || args[0][0] != '-') {
@@ -109,6 +110,7 @@ func run(args []string, log *slog.Logger) error {
 		return fmt.Errorf("unknown command %q", command)
 	}
 }
+
 func serve(c config.Config, log *slog.Logger) error {
 	s, err := store.Open(c.DataDir)
 	if err != nil {
@@ -138,10 +140,14 @@ func serve(c config.Config, log *slog.Logger) error {
 	jobsDone := make(chan struct{})
 	go func() {
 		defer close(jobsDone)
-		s.Jobs(jobsCtx, c.TrashRetentionDays, hub.Kick, func(err error) { log.Error("cleanup failed", "error", err) })
+		s.Jobs(jobsCtx, c.TrashRetentionDays, hub.Kick, func(err error) {
+			log.Error("cleanup failed", "error", err)
+		})
 	}()
 	done := make(chan error, 1)
-	go func() { done <- server.Serve(listener) }()
+	go func() {
+		done <- server.Serve(listener)
+	}()
 	log.Info("listening", "address", listener.Addr().String(), "dev_login", c.DevLogin)
 	select {
 	case <-ctx.Done():
@@ -152,7 +158,10 @@ func serve(c config.Config, log *slog.Logger) error {
 	stopJobs()
 	// Shutdown does not drain hijacked WebSockets; close those explicitly with 1001.
 	closed := make(chan struct{})
-	go func() { hub.Close(); close(closed) }()
+	go func() {
+		hub.Close()
+		close(closed)
+	}()
 	shutdownErr := server.Shutdown(shutdownCtx)
 	if shutdownErr != nil {
 		_ = server.Close()

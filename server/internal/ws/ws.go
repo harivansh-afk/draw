@@ -32,6 +32,7 @@ type outbound struct {
 	data  []byte
 	close websocket.StatusCode
 }
+
 type client struct {
 	id, user, session, room, permission string
 	conn                                *websocket.Conn
@@ -43,6 +44,7 @@ type client struct {
 	closing                             bool
 	membership                          uint64
 }
+
 type Hub struct {
 	store   *store.Store
 	config  config.Config
@@ -57,6 +59,7 @@ type Hub struct {
 func New(s *store.Store, c config.Config) *Hub {
 	return &Hub{store: s, config: c, clients: map[string]*client{}, rooms: map[string]map[string]*client{}, follows: map[string]map[string]*client{}}
 }
+
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Origin") != h.config.BaseURL {
 		w.Header().Set("Content-Type", "application/json")
@@ -123,7 +126,10 @@ type upgradeResponse struct {
 	failed bool
 }
 
-func (w *upgradeResponse) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *upgradeResponse) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (w *upgradeResponse) WriteHeader(status int) {
 	if status < 400 {
 		w.ResponseWriter.WriteHeader(status)
@@ -134,12 +140,14 @@ func (w *upgradeResponse) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 	_ = json.NewEncoder(w.ResponseWriter).Encode(map[string]string{"error": "bad_request", "message": "Invalid WebSocket upgrade"})
 }
+
 func (w *upgradeResponse) Write(b []byte) (int, error) {
 	if w.failed {
 		return len(b), nil
 	}
 	return w.ResponseWriter.Write(b)
 }
+
 func (c *client) writer() {
 	defer close(c.done)
 	defer c.cancel()
@@ -237,6 +245,7 @@ func ids(m map[string]*client) []string {
 	sort.Strings(v)
 	return v
 }
+
 func (h *Hub) leave(c *client) {
 	if members := h.rooms[c.room]; members != nil {
 		delete(members, c.id)
@@ -265,6 +274,7 @@ func (h *Hub) leave(c *client) {
 	c.permission = ""
 	c.membership++
 }
+
 func (h *Hub) badMessage(c *client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -325,7 +335,9 @@ func (h *Hub) handle(c *client, m Message) {
 	if c.closing {
 		return
 	}
-	bad := func() { h.emit(c, "error", false, "bad_message") }
+	bad := func() {
+		h.emit(c, "error", false, "bad_message")
+	}
 	switch m.Event {
 	case "server-broadcast", "server-volatile-broadcast":
 		if len(m.Args) != 3 {
@@ -393,6 +405,7 @@ func (h *Hub) handle(c *client, m Message) {
 		bad()
 	}
 }
+
 func (h *Hub) maintenance(c *client) {
 	go func() {
 		ping := time.NewTicker(pingInterval)
@@ -426,6 +439,7 @@ func (h *Hub) maintenance(c *client) {
 		}
 	}
 }
+
 func (h *Hub) recheck(c *client) bool {
 	h.mu.Lock()
 	uid, session, room, membership := c.user, c.session, c.room, c.membership
@@ -476,7 +490,11 @@ func (h *Hub) Close() {
 	var wg sync.WaitGroup
 	for _, c := range clients {
 		wg.Add(1)
-		go func() { defer wg.Done(); _ = c.conn.Close(websocket.StatusGoingAway, "server shutdown"); c.cancel() }()
+		go func() {
+			defer wg.Done()
+			_ = c.conn.Close(websocket.StatusGoingAway, "server shutdown")
+			c.cancel()
+		}()
 	}
 	wg.Wait()
 	h.wg.Wait()

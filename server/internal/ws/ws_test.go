@@ -31,6 +31,7 @@ func (p peer) send(event string, args ...any) {
 		p.t.Fatal(err)
 	}
 }
+
 func (p peer) read(event string) Message {
 	p.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -45,6 +46,7 @@ func (p peer) read(event string) Message {
 	}
 	return m
 }
+
 func TestTwoClients(t *testing.T) {
 	c, err := config.Load(nil)
 	if err != nil {
@@ -99,7 +101,9 @@ func TestTwoClients(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { conn.CloseNow() })
+		t.Cleanup(func() {
+			conn.CloseNow()
+		})
 		p := peer{t: t, c: conn}
 		p.id = p.read("hello").Args[0].(string)
 		if len(p.id) != 22 {
@@ -190,7 +194,10 @@ func TestTwoClients(t *testing.T) {
 	owner.read("error")
 	// Reader must run while Close performs the WebSocket close handshake.
 	closed := make(chan error, 1)
-	go func() { _, _, err := owner.c.Read(context.Background()); closed <- err }()
+	go func() {
+		_, _, err := owner.c.Read(context.Background())
+		closed <- err
+	}()
 	h.Close()
 	if err = <-closed; websocket.CloseStatus(err) != websocket.StatusGoingAway {
 		t.Fatalf("shutdown: %v", err)
@@ -200,6 +207,7 @@ func TestTwoClients(t *testing.T) {
 		t.Fatal("cross-origin websocket accepted")
 	}
 }
+
 func TestFraming(t *testing.T) {
 	f := Encode("event", "room", []byte{1, 2}, []byte{3})
 	m, err := Decode(f)
@@ -212,6 +220,7 @@ func TestFraming(t *testing.T) {
 		}
 	}
 }
+
 func frameJSON(raw string) []byte {
 	b := Encode("e")
 	b = append(b[:5], raw...)
@@ -222,20 +231,21 @@ func frameJSON(raw string) []byte {
 	b[4] = byte(n)
 	return b
 }
+
 func TestQueuePolicy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	c := &client{ctx: ctx, cancel: cancel, send: make(chan outbound, 128)}
+	c := &client{ctx: ctx, cancel: cancel, send: make(chan outbound, sendQueueCount)}
 	h := &Hub{}
-	for range 65 {
+	for range volatileQueueThreshold + 1 {
 		c.send <- outbound{}
 	}
 	h.emit(c, "volatile", true)
-	if len(c.send) != 65 {
+	if len(c.send) != volatileQueueThreshold+1 {
 		t.Fatal("volatile not dropped")
 	}
 	h.emit(c, "regular", false)
-	if len(c.send) != 66 {
+	if len(c.send) != volatileQueueThreshold+2 {
 		t.Fatal("regular dropped")
 	}
 	data := Encode("client-broadcast", []byte{1}, []byte{2})
@@ -264,7 +274,9 @@ func TestAnonymousAdHocBroadcast(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { conn.CloseNow() })
+		t.Cleanup(func() {
+			conn.CloseNow()
+		})
 		p := peer{t: t, c: conn}
 		p.id = p.read("hello").Args[0].(string)
 		p.read("init-room")

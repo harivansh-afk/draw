@@ -78,6 +78,7 @@ func TestMigrationsBackupPurge(t *testing.T) {
 		t.Fatal("foreign keys disabled")
 	}
 }
+
 func TestPermissionMatrix(t *testing.T) {
 	for _, share := range []string{"private", "view", "edit"} {
 		for _, user := range []string{"owner", "other", ""} {

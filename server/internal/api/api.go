@@ -30,21 +30,38 @@ type Server struct {
 	Log     *slog.Logger
 	limiter limiter
 }
+
 type failure struct {
 	status        int
 	code, message string
 }
 
-func (e failure) Error() string { return e.message }
-func bad(message string) error  { return failure{400, "bad_request", message} }
-func forbidden() error          { return failure{403, "forbidden", "Permission denied"} }
-func unauthorized() error       { return failure{401, "unauthorized", "Sign in required"} }
-func notFound() error           { return failure{404, "not_found", "Not found"} }
+func (e failure) Error() string {
+	return e.message
+}
+
+func bad(message string) error {
+	return failure{400, "bad_request", message}
+}
+
+func forbidden() error {
+	return failure{403, "forbidden", "Permission denied"}
+}
+
+func unauthorized() error {
+	return failure{401, "unauthorized", "Sign in required"}
+}
+
+func notFound() error {
+	return failure{404, "not_found", "Not found"}
+}
+
 func JSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	var f failure
 	if !errors.As(err, &f) {
@@ -67,6 +84,7 @@ func (s *Server) wrap(h handler) http.HandlerFunc {
 		}
 	}
 }
+
 func (s *Server) Handler(files fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	routes := map[string]handler{
@@ -94,26 +112,48 @@ func (s *Server) Handler(files fs.FS) http.Handler {
 			w.WriteHeader(204)
 			return nil
 		},
-		"GET /api/auth/oidc/start":    func(w http.ResponseWriter, r *http.Request) error { s.Auth.Start(w, r); return nil },
-		"GET /api/auth/oidc/callback": func(w http.ResponseWriter, r *http.Request) error { s.Auth.Callback(w, r); return nil },
-		"GET /api/scenes":             s.listScenes, "POST /api/scenes": s.createScene,
-		"GET /api/scenes/{id}": s.getScene, "PATCH /api/scenes/{id}": s.patchScene, "DELETE /api/scenes/{id}": s.deleteScene,
-		"POST /api/scenes/{id}/restore": s.restoreScene, "POST /api/scenes/{id}/duplicate": s.duplicateScene,
-		"PUT /api/scenes/{id}/thumbnail": s.putThumbnail, "GET /api/scenes/{id}/thumbnail": s.getThumbnail,
-		"GET /api/collections": s.listCollections, "POST /api/collections": s.createCollection,
-		"PATCH /api/collections/{id}": s.patchCollection, "DELETE /api/collections/{id}": s.deleteCollection,
-		"GET /api/library": s.getLibrary, "PUT /api/library": s.putLibrary,
-		"GET /api/rooms/{roomId}": s.getRoom, "PUT /api/rooms/{roomId}": s.putRoom,
-		"GET /api/rooms/{roomId}/versions": s.roomVersions, "GET /api/rooms/{roomId}/versions/{rev}": s.getRoom,
-		"PUT /api/files/{kind}/{roomId}/{fileId}": s.putFile, "GET /api/files/{kind}/{roomId}/{fileId}": s.getFile,
-		"POST /api/v2/post": s.postSnapshot, "GET /api/v2/{id}": s.getSnapshot,
+		"GET /api/auth/oidc/start": func(w http.ResponseWriter, r *http.Request) error {
+			s.Auth.Start(w, r)
+			return nil
+		},
+		"GET /api/auth/oidc/callback": func(w http.ResponseWriter, r *http.Request) error {
+			s.Auth.Callback(w, r)
+			return nil
+		},
+		"GET /api/scenes":                         s.listScenes,
+		"POST /api/scenes":                        s.createScene,
+		"GET /api/scenes/{id}":                    s.getScene,
+		"PATCH /api/scenes/{id}":                  s.patchScene,
+		"DELETE /api/scenes/{id}":                 s.deleteScene,
+		"POST /api/scenes/{id}/restore":           s.restoreScene,
+		"POST /api/scenes/{id}/duplicate":         s.duplicateScene,
+		"PUT /api/scenes/{id}/thumbnail":          s.putThumbnail,
+		"GET /api/scenes/{id}/thumbnail":          s.getThumbnail,
+		"GET /api/collections":                    s.listCollections,
+		"POST /api/collections":                   s.createCollection,
+		"PATCH /api/collections/{id}":             s.patchCollection,
+		"DELETE /api/collections/{id}":            s.deleteCollection,
+		"GET /api/library":                        s.getLibrary,
+		"PUT /api/library":                        s.putLibrary,
+		"GET /api/rooms/{roomId}":                 s.getRoom,
+		"PUT /api/rooms/{roomId}":                 s.putRoom,
+		"GET /api/rooms/{roomId}/versions":        s.roomVersions,
+		"GET /api/rooms/{roomId}/versions/{rev}":  s.getRoom,
+		"PUT /api/files/{kind}/{roomId}/{fileId}": s.putFile,
+		"GET /api/files/{kind}/{roomId}/{fileId}": s.getFile,
+		"POST /api/v2/post":                       s.postSnapshot,
+		"GET /api/v2/{id}":                        s.getSnapshot,
 	}
 	for p, h := range routes {
 		mux.HandleFunc(p, s.wrap(h))
 	}
 	mux.Handle("GET /api/ws", s.Hub)
-	mux.HandleFunc("/api/", s.wrap(func(w http.ResponseWriter, r *http.Request) error { return notFound() }))
-	mux.HandleFunc("/api", s.wrap(func(w http.ResponseWriter, r *http.Request) error { return notFound() }))
+	mux.HandleFunc("/api/", s.wrap(func(w http.ResponseWriter, r *http.Request) error {
+		return notFound()
+	}))
+	mux.HandleFunc("/api", s.wrap(func(w http.ResponseWriter, r *http.Request) error {
+		return notFound()
+	}))
 	mux.Handle("/", static.Handler(files))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -170,13 +210,18 @@ func (w *response) WriteHeader(status int) {
 		w.ResponseWriter.WriteHeader(status)
 	}
 }
+
 func (w *response) Write(b []byte) (int, error) {
 	if !w.wrote {
 		w.WriteHeader(200)
 	}
 	return w.ResponseWriter.Write(b)
 }
-func (w *response) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func (w *response) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (s *Server) ip(r *http.Request) string {
 	if s.Config.TrustProxy {
 		if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); ip != nil {
@@ -196,12 +241,14 @@ func (s *Server) ip(r *http.Request) string {
 	}
 	return r.RemoteAddr
 }
+
 func userID(r *http.Request) string {
 	if u := auth.Current(r).User; u != nil {
 		return u.ID
 	}
 	return ""
 }
+
 func requireUser(r *http.Request) (string, error) {
 	id := userID(r)
 	if id == "" {
@@ -209,6 +256,7 @@ func requireUser(r *http.Request) (string, error) {
 	}
 	return id, nil
 }
+
 func body(w http.ResponseWriter, r *http.Request, max int64) ([]byte, error) {
 	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, max))
 	if err != nil {
@@ -220,6 +268,7 @@ func body(w http.ResponseWriter, r *http.Request, max int64) ([]byte, error) {
 	}
 	return b, nil
 }
+
 func decode(w http.ResponseWriter, r *http.Request, v any, max int64) error {
 	b, err := body(w, r, max)
 	if err != nil {
@@ -241,6 +290,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any, max int64) error {
 	}
 	return nil
 }
+
 func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) error {
 	if !s.Config.DevLogin {
 		return notFound()
@@ -262,6 +312,7 @@ func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(204)
 	return nil
 }
+
 func (s *Server) sceneAccess(r *http.Request, owner, write bool) (store.Scene, string, error) {
 	id := r.PathValue("id")
 	if !store.ValidID(id) {
@@ -280,6 +331,7 @@ func (s *Server) sceneAccess(r *http.Request, owner, write bool) (store.Scene, s
 	}
 	return scene, p, nil
 }
+
 func (s *Server) roomAccess(r *http.Request, write bool) error {
 	id := r.PathValue("roomId")
 	if !store.ValidID(id) {
@@ -305,6 +357,7 @@ type limitEntry struct {
 	count int
 	until time.Time
 }
+
 type limiter struct {
 	mu        sync.Mutex
 	entries   map[string]limitEntry
