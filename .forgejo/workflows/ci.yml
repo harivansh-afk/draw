@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  server:
+    name: Go tests
+    runs-on: native
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd server && nix shell nixpkgs#go -c sh -c 'go vet ./... && go test ./...'
+
+  build:
+    name: Nix build
+    runs-on: native
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: nix build .#default -L
