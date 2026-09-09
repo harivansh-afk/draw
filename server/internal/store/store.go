@@ -26,8 +26,11 @@ type Store struct {
 	Mutation sync.Mutex
 }
 
-func Now() string               { return time.Now().UTC().Format(time.RFC3339Nano) }
-func Before(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+func Now() string { return Before(time.Now()) }
+func Before(t time.Time) string {
+	// Fixed fractional precision keeps SQLite TEXT ordering chronological.
+	return t.UTC().Format("2006-01-02T15:04:05.000000000Z")
+}
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 var snapshotID = regexp.MustCompile(`^[a-f0-9]{20}$`)
