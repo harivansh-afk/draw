@@ -100,3 +100,26 @@ func TestPermissionMatrix(t *testing.T) {
 		}
 	}
 }
+
+func TestPragmasOnFreshConnection(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "escaped?# directory"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	// Discard every returned connection, forcing each query to open a new one.
+	s.DB.SetMaxIdleConns(0)
+	for _, tt := range []struct {
+		pragma string
+		want   int
+	}{{"foreign_keys", 1}, {"busy_timeout", 5000}} {
+		var got int
+		if err := s.DB.QueryRow("PRAGMA " + tt.pragma).Scan(&got); err != nil || got != tt.want {
+			t.Fatalf("%s=%d: %v", tt.pragma, got, err)
+		}
+	}
+	var mode string
+	if err := s.DB.QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil || mode != "wal" {
+		t.Fatalf("journal_mode=%s: %v", mode, err)
+	}
+}

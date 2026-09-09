@@ -183,7 +183,11 @@ func (s *Server) putFile(w http.ResponseWriter, r *http.Request) error {
 	if err = s.fileAccess(r, true); err != nil {
 		return err
 	}
-	if err = store.AtomicWrite(s.Store.File(r.PathValue("kind"), r.PathValue("roomId"), r.PathValue("fileId")), b); err != nil {
+	write := store.AtomicWrite
+	if r.PathValue("kind") == "shareLinks" {
+		write = store.AtomicCreate
+	}
+	if err = write(s.Store.File(r.PathValue("kind"), r.PathValue("roomId"), r.PathValue("fileId")), b); err != nil {
 		return err
 	}
 	if r.PathValue("kind") == "rooms" {
@@ -261,6 +265,11 @@ func (s *Server) getThumbnail(w http.ResponseWriter, r *http.Request) error {
 func (s *Server) postSnapshot(w http.ResponseWriter, r *http.Request) error {
 	b, err := body(w, r, s.Config.MaxRoomBytes)
 	if err != nil {
+		var f failure
+		if errors.As(err, &f) && f.status == http.StatusRequestEntityTooLarge {
+			JSON(w, f.status, map[string]string{"error": f.code, "message": f.message, "error_class": "RequestTooLargeError"})
+			return nil
+		}
 		return err
 	}
 	id := crypt.ID()

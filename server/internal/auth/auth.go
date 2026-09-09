@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -26,7 +27,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const CookieName = "draw_session"
+const (
+	CookieName             = "draw_session"
+	sessionLifetime        = 30 * 24 * time.Hour
+	sessionRefreshInterval = time.Hour
+)
 
 var ErrNotAllowed = errors.New("account not allowed")
 
@@ -110,18 +115,28 @@ func (a *Auth) Identify(w http.ResponseWriter, r *http.Request) (*http.Request, 
 	}
 	hash := Hash(c.Value)
 	var u store.User
-	err = a.Store.DB.QueryRow("SELECT u.id,u.email,u.name,u.avatar_url FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?", hash, store.Now()).Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL)
+	var lastSeen string
+	err = a.Store.DB.QueryRow("SELECT u.id,u.email,u.name,u.avatar_url,s.last_seen_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?", hash, store.Now()).Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &lastSeen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, nil
 	}
 	if err != nil {
 		return r, err
 	}
-	_, err = a.Store.DB.Exec("UPDATE sessions SET expires_at=?,last_seen_at=? WHERE token_hash=?", store.Before(time.Now().Add(30*24*time.Hour)), store.Now(), hash)
-	if err != nil {
-		return r, err
+	now := time.Now()
+	if lastSeen < store.Before(now.Add(-sessionRefreshInterval)) {
+		result, err := a.Store.DB.Exec("UPDATE sessions SET expires_at=?,last_seen_at=? WHERE token_hash=? AND last_seen_at<?", store.Before(now.Add(sessionLifetime)), store.Before(now), hash, store.Before(now.Add(-sessionRefreshInterval)))
+		if err != nil {
+			return r, err
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return r, err
+		}
+		if n > 0 {
+			a.cookie(w, CookieName, c.Value, int(sessionLifetime.Seconds()))
+		}
 	}
-	a.cookie(w, CookieName, c.Value, 30*86400)
 	return r.WithContext(context.WithValue(r.Context(), identityKey{}, Identity{&u, hash})), nil
 }
 func (a *Auth) Login(issuer, subject, email, name, avatar string) (store.User, error) {
@@ -161,6 +176,18 @@ func (a *Auth) Login(issuer, subject, email, name, avatar string) (store.User, e
 	}
 	var u store.User
 	err = tx.QueryRow("SELECT id,email,name,avatar_url FROM users WHERE issuer=? AND subject=?", issuer, subject).Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return u, err
+	}
+	var emailID, emailIssuer string
+	emailErr := tx.QueryRow("SELECT id,issuer FROM users WHERE email=?", email).Scan(&emailID, &emailIssuer)
+	if emailErr != nil && !errors.Is(emailErr, sql.ErrNoRows) {
+		return u, emailErr
+	}
+	if emailErr == nil && emailID != u.ID && !(u.ID == "" && emailIssuer == "draw:import") {
+		slog.Warn("OIDC login rejected", "reason", "email belongs to a different subject", "issuer", issuer)
+		return u, ErrNotAllowed
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		// Only importer placeholders can be claimed by a verified login with the same email.
 		err = tx.QueryRow("SELECT id FROM users WHERE issuer='draw:import' AND email=?", email).Scan(&u.ID)
@@ -184,9 +211,9 @@ func (a *Auth) Login(issuer, subject, email, name, avatar string) (store.User, e
 func (a *Auth) Session(w http.ResponseWriter, u store.User) error {
 	token := crypt.Token()
 	now := store.Now()
-	_, err := a.Store.DB.Exec("INSERT INTO sessions VALUES(?,?,?,?,?)", Hash(token), u.ID, now, store.Before(time.Now().Add(30*24*time.Hour)), now)
+	_, err := a.Store.DB.Exec("INSERT INTO sessions VALUES(?,?,?,?,?)", Hash(token), u.ID, now, store.Before(time.Now().Add(sessionLifetime)), now)
 	if err == nil {
-		a.cookie(w, CookieName, token, 30*86400)
+		a.cookie(w, CookieName, token, int(sessionLifetime.Seconds()))
 	}
 	return err
 }
@@ -212,7 +239,9 @@ func SafeNext(next string) string {
 	if err != nil || !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.ContainsAny(next, "\\\r\n") || u.IsAbs() || u.Host != "" {
 		return "/"
 	}
-	return next
+	u.Fragment = ""
+	u.RawFragment = ""
+	return u.String()
 }
 
 type flow struct {

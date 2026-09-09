@@ -33,7 +33,7 @@ func main() {
 }
 func run(args []string, log *slog.Logger) error {
 	command := "serve"
-	if len(args) > 0 && args[0][0] != '-' {
+	if len(args) > 0 && (args[0] == "" || args[0][0] != '-') {
 		command = args[0]
 		args = args[1:]
 	}

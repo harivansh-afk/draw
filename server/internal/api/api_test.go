@@ -435,3 +435,97 @@ func TestAuthenticatedLimitsAndForwardedIP(t *testing.T) {
 	}
 	status(t, f.request("GET", "/api/ws", nil, "", map[string]string{"X-Forwarded-For": "192.0.2.1"}), 426)
 }
+
+func TestSpoofedProxySnapshotLimit(t *testing.T) {
+	for _, cf := range []string{"", "203.0.113.9"} {
+		t.Run("CF="+cf, func(t *testing.T) {
+			f := setup(t, true)
+			f.s.Config.TrustProxy = true
+			for i := range 31 {
+				headers := map[string]string{"X-Forwarded-For": fmt.Sprintf("198.51.100.%d, 203.0.113.8, 10.0.0.1, ::1", i), "CF-Connecting-IP": cf}
+				if cf != "" {
+					headers["X-Forwarded-For"] = fmt.Sprintf("198.51.100.%d", i)
+				}
+				want := 200
+				if i == 30 {
+					want = 429
+				}
+				status(t, f.request("POST", "/api/v2/post", []byte("snapshot"), "", headers), want)
+			}
+		})
+	}
+}
+
+func TestSnapshotFilesAreImmutable(t *testing.T) {
+	f := setup(t, true)
+	r := f.request("POST", "/api/v2/post", []byte("snapshot"), "", nil)
+	status(t, r, 200)
+	id := readJSON[struct{ ID string }](t, r).ID
+	path := "/api/files/shareLinks/" + id + "/image"
+	status(t, f.request("PUT", path, []byte("original"), "", nil), 204)
+	status(t, f.request("PUT", path, []byte("replacement"), "", nil), 204)
+	r = f.request("GET", path, nil, "", nil)
+	status(t, r, 200)
+	b, err := io.ReadAll(r.Body)
+	if err != nil || string(b) != "original" {
+		t.Fatalf("snapshot file changed: %q, %v", b, err)
+	}
+}
+
+func TestSnapshotTooLargeCompatibility(t *testing.T) {
+	f := setup(t, true)
+	f.s.Config.MaxRoomBytes = 4
+	r := f.request("POST", "/api/v2/post", []byte("large"), "", nil)
+	status(t, r, 413)
+	v := readJSON[map[string]string](t, r)
+	if v["error"] != "too_large" || v["error_class"] != "RequestTooLargeError" || v["message"] == "" {
+		t.Fatal(v)
+	}
+}
+
+func TestStaticMIMETypes(t *testing.T) {
+	f := setup(t, true)
+	for path, want := range map[string]string{"/fonts/a.woff2": "font/woff2", "/manifest.webmanifest": "application/manifest+json"} {
+		r := f.request("GET", path, nil, "", nil)
+		status(t, r, 200)
+		if got := r.Header.Get("Content-Type"); got != want {
+			t.Fatalf("%s: %s, want %s", path, got, want)
+		}
+	}
+}
+
+func TestSessionRefreshInterval(t *testing.T) {
+	f := setup(t, true)
+	cookie := f.login("owner@example.com")
+	var initial string
+	if err := f.s.Store.DB.QueryRow("SELECT last_seen_at FROM sessions").Scan(&initial); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		r := f.request("GET", "/api/auth/me", nil, cookie, nil)
+		status(t, r, 200)
+		if len(r.Cookies()) != 0 {
+			t.Fatal("fresh session reset cookie")
+		}
+	}
+	var seen string
+	if err := f.s.Store.DB.QueryRow("SELECT last_seen_at FROM sessions").Scan(&seen); err != nil || seen != initial {
+		t.Fatalf("fresh session updated: %s, %v", seen, err)
+	}
+	old := store.Before(time.Now().Add(-2 * time.Hour))
+	if _, err := f.s.Store.DB.Exec("UPDATE sessions SET last_seen_at=?", old); err != nil {
+		t.Fatal(err)
+	}
+	r := f.request("GET", "/api/auth/me", nil, cookie, nil)
+	status(t, r, 200)
+	if len(r.Cookies()) != 1 || r.Cookies()[0].MaxAge != 30*86400 {
+		t.Fatal("stale session did not refresh cookie")
+	}
+	if err := f.s.Store.DB.QueryRow("SELECT last_seen_at FROM sessions").Scan(&seen); err != nil || seen <= old {
+		t.Fatalf("stale session not refreshed: %s, %v", seen, err)
+	}
+	r = f.request("GET", "/api/auth/me", nil, cookie, nil)
+	if len(r.Cookies()) != 0 {
+		t.Fatal("refreshed session reset cookie again")
+	}
+}

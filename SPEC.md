@@ -189,7 +189,7 @@ draw backup OUT.sqlite              # VACUUM INTO, consistent snapshot
 | `DRAW_ALLOWED_EMAILS` | empty | Comma-separated allowlist. Empty means: the first account that ever signs in is recorded and becomes the only allowed account. |
 | `DRAW_OPEN_SIGNUP` | `0` | `1` lets any verified account sign in (overrides the rule above) |
 | `DRAW_DEV_LOGIN` | `0` | `1` enables `POST /api/auth/dev` and disables the OIDC requirement. Never set in production. |
-| `DRAW_TRUST_PROXY` | `0` | `1` reads the client IP from `X-Forwarded-For` (first hop) for logs and rate limits |
+| `DRAW_TRUST_PROXY` | `0` | `1` prefers `CF-Connecting-IP`, else the rightmost valid `X-Forwarded-For` IP after stripping loopback/private hops, for logs and rate limits |
 | `DRAW_SESSION_KEY_FILE` | `DATA_DIR/session.key` | 32 random bytes, created with mode 0600 if missing |
 | `DRAW_MAX_ROOM_BYTES` | `8388608` | Room payload cap (8 MiB) |
 | `DRAW_MAX_FILE_BYTES` | `6291456` | Per-file cap (upstream caps the dataURL at 4 MiB before encoding) |
@@ -200,10 +200,12 @@ draw backup OUT.sqlite              # VACUUM INTO, consistent snapshot
 
 - Cookie `draw_session`: 32-byte random token, HttpOnly, SameSite=Lax, Path=/,
   Secure when `DRAW_BASE_URL` is https, 30-day sliding expiry. The token's
-  SHA-256 is stored in `sessions`.
+  SHA-256 is stored in `sessions`. Expiry and the cookie refresh only when
+  `last_seen_at` is older than one hour.
 - OIDC: standard code flow with `state` and `nonce` in a short-lived cookie,
   scopes `openid email profile`, `email_verified` must be true. Users are keyed
   by `issuer + sub`; email, name and avatar URL are refreshed on each login.
+  An email held by a different subject is rejected with `not_allowed`.
 - Allowlist: see config. Rejected sign-ins redirect to `/login?error=not_allowed`.
 - State-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`) must carry either
   `Sec-Fetch-Site: same-origin`/`none` or an `Origin` equal to `DRAW_BASE_URL`;
@@ -245,7 +247,7 @@ Auth
 - `GET  /api/auth/config` → `{ devLogin: bool, provider: "Google" }`
 - `GET  /api/auth/me` → `{ user }` or 401
 - `GET  /api/auth/oidc/start?next=/path` → 302 to the provider (`next` must be a
-  same-origin path, else `/`)
+  same-origin path, else `/`; fragments are stripped before storage)
 - `GET  /api/auth/oidc/callback` → sets the cookie, 302 to `next`
 - `POST /api/auth/logout` → clears the cookie, 204
 - `POST /api/auth/dev {email, name?}` → dev only; creates/logs in; 204
@@ -298,14 +300,15 @@ Rooms (permissions above)
 Files
 - `PUT /api/files/rooms/:roomId/:fileId` raw bytes ≤ `DRAW_MAX_FILE_BYTES`, room write permission → 204 (idempotent; same id overwrites)
 - `GET /api/files/rooms/:roomId/:fileId` → bytes, room read permission, `Cache-Control: private, max-age=31536000, immutable`
-- `PUT /api/files/shareLinks/:jsonId/:fileId` → 204 if the snapshot `jsonId` exists, else 404
+- `PUT /api/files/shareLinks/:jsonId/:fileId` → 204 if the snapshot `jsonId` exists, else 404; existing files are immutable (a repeated PUT keeps the first bytes)
 - `GET /api/files/shareLinks/:jsonId/:fileId` → bytes, `Cache-Control: public, max-age=31536000, immutable`
 File ids are validated as `[A-Za-z0-9_-]{1,64}`; room and snapshot ids as `[a-f0-9]{20}` (upstream also accepts `[a-zA-Z0-9_-]+` for legacy rooms; accept `[A-Za-z0-9_-]{1,64}` for rooms).
 
 Snapshot links (upstream json backend contract)
 - `POST /api/v2/post` raw body ≤ `DRAW_MAX_ROOM_BYTES` → `{ id }` (20 hex). Signed
   in, or anonymous with `read` on any scene is not knowable here, so: anyone,
-  rate limited to 30/hour/IP.
+  rate limited to 30/hour/IP. A 413 includes `error: "too_large"` and
+  `error_class: "RequestTooLargeError"` for the upstream export client.
 - `GET /api/v2/:id` → raw bytes, `Cache-Control: public, max-age=31536000, immutable`
 
 Health

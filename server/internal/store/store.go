@@ -6,6 +6,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,7 +42,12 @@ func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", filepath.Join(dir, "draw.db"))
+	path, err := filepath.Abs(filepath.Join(dir, "draw.db"))
+	if err != nil {
+		return nil, err
+	}
+	u := url.URL{Scheme: "file", Path: path, RawQuery: "_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"}
+	db, err := sql.Open("sqlite", u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +60,7 @@ func Open(dir string) (*Store, error) {
 	return s, nil
 }
 func (s *Store) migrate() error {
-	for _, q := range []string{"PRAGMA journal_mode=WAL", "PRAGMA busy_timeout=5000", "PRAGMA foreign_keys=ON", "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)"} {
+	for _, q := range []string{"CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)"} {
 		if _, err := s.DB.Exec(q); err != nil {
 			return err
 		}
@@ -98,6 +104,15 @@ func (s *Store) File(kind, id, file string) string {
 }
 func (s *Store) Thumb(id string) string { return filepath.Join(s.Dir, "thumbs", id+".png") }
 func AtomicWrite(path string, data []byte) error {
+	return atomicWrite(path, data, false)
+}
+
+// AtomicCreate publishes complete bytes without replacing an existing immutable file.
+func AtomicCreate(path string, data []byte) error {
+	return atomicWrite(path, data, true)
+}
+
+func atomicWrite(path string, data []byte, exclusive bool) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -115,6 +130,13 @@ func AtomicWrite(path string, data []byte) error {
 		return err
 	}
 	if err = f.Close(); err != nil {
+		return err
+	}
+	if exclusive {
+		err := os.Link(f.Name(), path)
+		if os.IsExist(err) {
+			return nil
+		}
 		return err
 	}
 	return os.Rename(f.Name(), path)

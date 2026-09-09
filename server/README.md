@@ -44,12 +44,14 @@ environment booleans accept 1/0. Relative paths resolve against the working dire
 
 Production needs DRAW_BASE_URL=https://draw.harivan.sh, a writable DRAW_DATA_DIR,
 OIDC_CLIENT_ID and OIDC_CLIENT_SECRET. Set DRAW_TRUST_PROXY=1 behind Caddy, which
-must supply X-Forwarded-For. Leave DRAW_DEV_LOGIN disabled. DRAW_OPEN_SIGNUP
+must supply trusted forwarding headers. Client IP selection prefers CF-Connecting-IP,
+then the rightmost valid X-Forwarded-For IP after stripping private/loopback hops.
+The proxy must overwrite these headers with trusted values. Leave DRAW_DEV_LOGIN disabled. DRAW_OPEN_SIGNUP
 overrides the allowlist. session.key is created as 32 random bytes with mode 0600.
 
 The draw_session cookie is HttpOnly, SameSite=Lax, Path=/, Secure for HTTPS, with
-30-day sliding expiry. Only its SHA-256 hash is stored. draw_oidc is a signed,
-10-minute state/nonce/next cookie used during login. API responses default to
+30-day sliding expiry, refreshed only after last_seen_at is older than one hour. Only its SHA-256 hash is stored. draw_oidc is a signed,
+10-minute state/nonce/next cookie used during login; next fragments are stripped. API responses default to
 no-store; files, snapshots and thumbnails override this as specified.
 
 POST/PUT/PATCH/DELETE require either a matching Origin or Sec-Fetch-Site:
@@ -71,7 +73,13 @@ Errors contain error and message:
 | 429 | rate_limited |
 | 500 | internal_error |
 
-OIDC failures redirect to /login?error=oidc or /login?error=not_allowed.
+POST /api/v2/post 413 responses also include error_class: "RequestTooLargeError"
+for the upstream export client. Snapshot files are immutable: repeated PUTs return
+204 and preserve the first published bytes. Static font and manifest types are
+registered explicitly for hosts without /etc/mime.types.
+
+OIDC email collisions with another subject are logged and return not_allowed;
+issuer+subject remains the identity key. OIDC failures redirect to /login?error=oidc or /login?error=not_allowed.
 WebSocket error events contain forbidden or bad_message. Forbidden joins and
 revoked access close with 4403; shutdown closes with 1001. All frames use the
 binary version-1 transport, including hello and init-room. Room saves require

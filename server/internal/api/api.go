@@ -179,8 +179,15 @@ func (w *response) Write(b []byte) (int, error) {
 func (w *response) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 func (s *Server) ip(r *http.Request) string {
 	if s.Config.TrustProxy {
-		if v := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); net.ParseIP(v) != nil {
-			return v
+		if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); ip != nil {
+			return ip.String()
+		}
+		hops := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+		for i := len(hops) - 1; i >= 0; i-- {
+			ip := net.ParseIP(strings.TrimSpace(hops[i]))
+			if ip != nil && !ip.IsLoopback() && !ip.IsPrivate() {
+				return ip.String()
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
