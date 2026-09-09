@@ -4,6 +4,8 @@ export const INITIAL_SCENE_UPDATE_TIMEOUT = 5000;
 export const FILE_UPLOAD_TIMEOUT = 300;
 export const LOAD_IMAGES_TIMEOUT = 500;
 export const SYNC_FULL_SCENE_INTERVAL_MS = 20000;
+export const SAVE_TO_SERVER_INTERVAL_MS = 2000;
+export const THUMBNAIL_INTERVAL_MS = 10000;
 export const SYNC_BROWSER_TABS_TIMEOUT = 50;
 export const CURSOR_SYNC_TIMEOUT = 33; // ~30fps
 export const DELETED_ELEMENT_TIMEOUT = 24 * 60 * 60 * 1000; // 1 day
@@ -29,9 +31,9 @@ export enum WS_SUBTYPES {
   USER_VISIBLE_SCENE_BOUNDS = "USER_VISIBLE_SCENE_BOUNDS",
 }
 
-export const FIREBASE_STORAGE_PREFIXES = {
-  shareLinkFiles: `/files/shareLinks`,
-  collabFiles: `/files/rooms`,
+export const FILE_STORAGE_PREFIXES = {
+  shareLinkFiles: `shareLinks`,
+  collabFiles: `rooms`,
 };
 
 export const ROOM_ID_BYTES = 10;
@@ -51,11 +53,3 @@ export const STORAGE_KEYS = {
   // do not use apart from migrations
   __LEGACY_LOCAL_STORAGE_LIBRARY: "excalidraw-library",
 } as const;
-
-export const COOKIES = {
-  AUTH_STATE_COOKIE: "excplus-auth",
-} as const;
-
-export const isExcalidrawPlusSignedUser = document.cookie.includes(
-  COOKIES.AUTH_STATE_COOKIE,
-);

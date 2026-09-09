@@ -1,0 +1,99 @@
+.scene-error {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Assistant", system-ui, sans-serif;
+  background: #ffffff;
+  color: #1b1b1f;
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 2.5rem 2rem;
+    max-width: 26rem;
+    text-align: center;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #e9ecef, 0 8px 24px rgba(0, 0, 0, 0.06);
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0.5rem 0 0;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: #6c6c73;
+      line-height: 1.5;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  &__button {
+    appearance: none;
+    border: 1px solid #6965db;
+    background: #6965db;
+    color: #ffffff;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover {
+      background: #5b57d1;
+      border-color: #5b57d1;
+    }
+
+    &--outline {
+      background: transparent;
+      color: #6965db;
+
+      &:hover {
+        background: rgba(105, 101, 219, 0.08);
+      }
+    }
+  }
+}
+
+html.dark .scene-error {
+  background: #121212;
+  color: #ced4da;
+
+  .scene-error__card {
+    background: #232329;
+    box-shadow: 0 0 0 1px #3a3a3f, 0 8px 24px rgba(0, 0, 0, 0.4);
+
+    p {
+      color: #a0a0a8;
+    }
+  }
+
+  .scene-error__button {
+    border-color: #a8a5ff;
+    background: #a8a5ff;
+    color: #121212;
+
+    &:hover {
+      background: #bbb8ff;
+      border-color: #bbb8ff;
+    }
+
+    &--outline {
+      background: transparent;
+      color: #a8a5ff;
+    }
+  }
+}

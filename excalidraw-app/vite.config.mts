@@ -6,7 +6,6 @@ import { ViteEjsPlugin } from "vite-plugin-ejs";
 import { VitePWA } from "vite-plugin-pwa";
 import checker from "vite-plugin-checker";
 import { createHtmlPlugin } from "vite-plugin-html";
-import Sitemap from "vite-plugin-sitemap";
 import { woff2BrowserPlugin } from "../scripts/woff2/woff2-vite-plugins";
 export default defineConfig(({ mode }) => {
   // To load .env variables
@@ -17,6 +16,13 @@ export default defineConfig(({ mode }) => {
       port: Number(envVars.VITE_APP_PORT || 3000),
       // open the browser
       open: true,
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:34729",
+          changeOrigin: false,
+          ws: true,
+        },
+      },
     },
     // We need to specify the envDir since now there are no
     //more located in parallel with the vite.config.ts file but in parent dir
@@ -132,13 +138,6 @@ export default defineConfig(({ mode }) => {
       assetsInlineLimit: 0,
     },
     plugins: [
-      Sitemap({
-        hostname: "https://excalidraw.com",
-        outDir: "build",
-        changefreq: "monthly",
-        // its static in public folder
-        generateRobotsTxt: false,
-      }),
       woff2BrowserPlugin(),
       react(),
       checker({
@@ -162,6 +161,8 @@ export default defineConfig(({ mode }) => {
         },
 
         workbox: {
+          // the SPA shell must never answer for the API
+          navigateFallbackDenylist: [/^\/api\//],
           // don't precache fonts, locales and separate chunks
           globIgnores: [
             "fonts.css",
