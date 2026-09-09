@@ -88,7 +88,13 @@ import {
   saveUsernameToLocalStorage,
 } from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
-import { isSceneMode, isSceneReadOnly, setSaveState } from "../scene/sceneMode";
+import { getCurrentUser } from "../data/auth";
+import {
+  isSceneMode,
+  isSceneReadOnly,
+  markSceneForbidden,
+  setSaveState,
+} from "../scene/sceneMode";
 import { queueThumbnailUpload } from "../scene/thumbnail";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
@@ -166,7 +172,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           throw new AbortError();
         }
 
-        return loadFilesFromServer(`files/rooms/${roomId}`, roomKey, fileIds);
+        return loadFilesFromServer(
+          `${FILE_STORAGE_PREFIXES.collabFiles}/${roomId}`,
+          roomKey,
+          fileIds,
+        );
       },
       saveFiles: async ({ addedFiles }) => {
         const { roomId, roomKey } = this.portal;
@@ -331,6 +341,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   saveCollabRoomToFirebase = async (
     syncableElements: readonly SyncableExcalidrawElement[],
   ) => {
+    // viewers never persist; the server would reject it and the retry loop
+    // would surface a save error every cycle
+    if (isSceneReadOnly()) {
+      return;
+    }
     syncableElements = cloneJSON(syncableElements);
     const isScene = isSceneMode();
     try {
@@ -517,10 +532,16 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     existingRoomLinkData: null | { roomId: string; roomKey: string },
   ) => {
     if (!this.state.username) {
-      import("@excalidraw/random-username").then(({ getRandomUsername }) => {
-        const username = getRandomUsername();
-        this.setUsername(username);
-      });
+      // signed-in users collaborate under their account name
+      const accountName = getCurrentUser()?.name?.trim();
+      if (accountName) {
+        this.setUsername(accountName);
+      } else {
+        import("@excalidraw/random-username").then(({ getRandomUsername }) => {
+          const username = getRandomUsername();
+          this.setUsername(username);
+        });
+      }
     }
 
     if (this.portal.socket) {
@@ -737,11 +758,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
     this.portal.socket.on("error", (code: string) => {
       if (code === "forbidden") {
-        this.setErrorDialog(
-          "You no longer have access to this scene. Changes will not be saved.",
-        );
         if (isSceneMode()) {
+          // access was revoked: swap the editor for the private-scene page
           setSaveState("error");
+          markSceneForbidden();
+        } else {
+          this.setErrorDialog("You no longer have access to this room.");
         }
       }
     });
@@ -1012,7 +1034,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   syncElements = (elements: readonly OrderedExcalidrawElement[]) => {
     this.broadcastElements(elements);
-    this.queueSaveToFirebase();
+    if (!isSceneReadOnly()) {
+      this.queueSaveToFirebase();
+    }
   };
 
   queueBroadcastAllElements = throttle(() => {

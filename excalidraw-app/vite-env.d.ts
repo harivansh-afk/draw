@@ -11,6 +11,9 @@ interface ImportMetaEnv {
   // collaboration websocket; empty means same-origin /api/ws
   VITE_APP_WS_SERVER_URL: string;
 
+  // dev server only: where vite proxies /api (default http://127.0.0.1:34729)
+  VITE_APP_API_PROXY: string;
+
   VITE_APP_AI_BACKEND: string;
 
   // whether to disable live reload / HMR. Usuaully what you want to do when

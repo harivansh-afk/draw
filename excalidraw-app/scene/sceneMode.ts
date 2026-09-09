@@ -87,6 +87,11 @@ export const loadScene = async (id: string): Promise<SceneAccess | null> => {
   }
 };
 
+/** Used when the server revokes access mid-session (share turned off). */
+export const markSceneForbidden = () => {
+  appJotaiStore.set(sceneErrorAtom, "forbidden");
+};
+
 export const renameScene = async (name: string) => {
   const scene = getScene();
   if (!scene) {

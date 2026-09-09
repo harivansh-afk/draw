@@ -134,7 +134,6 @@ const SceneShareDialogInner = ({
                 name="scene-public-link"
                 title="Public link"
                 checked={publicLinkOn}
-                disabled={pendingMode !== null}
                 onChange={(checked) =>
                   changeAccess(checked ? lastGuestPermission : "private")
                 }
@@ -177,7 +176,7 @@ const SceneShareDialogInner = ({
             <div className="SceneShareDialog__heading">Guest permissions</div>
             <div
               className={clsx("SceneShareDialog__row", {
-                disabled: !publicLinkOn || pendingMode !== null,
+                disabled: !publicLinkOn,
               })}
             >
               <span>Canvas</span>

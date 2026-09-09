@@ -1182,6 +1182,8 @@ const ExcalidrawWrapper = () => {
               {
                 label: t("labels.liveCollaboration"),
                 category: DEFAULT_CATEGORIES.app,
+                // scenes are always live; the Share command covers them
+                predicate: () => !sceneMode,
                 keywords: [
                   "team",
                   "multiplayer",
