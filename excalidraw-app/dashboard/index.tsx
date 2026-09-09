@@ -9,6 +9,7 @@ import { navigate, useRoute } from "./router";
 import { useDashboardTheme } from "./theme";
 import { Spinner, ToastProvider } from "./ui";
 
+import "@excalidraw/excalidraw/fonts/fonts.css";
 import "./dashboard.scss";
 
 import type { User } from "../data/api";
