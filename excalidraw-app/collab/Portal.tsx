@@ -13,6 +13,7 @@ import type {
 
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
 import { isSyncableElement } from "../data";
+import { isSceneReadOnly } from "../scene/sceneMode";
 
 import type {
   SocketUpdateData,
@@ -20,7 +21,7 @@ import type {
   SyncableExcalidrawElement,
 } from "../data";
 import type { TCollabClass } from "./Collab";
-import type { Socket } from "socket.io-client";
+import type { Socket } from "./socket";
 
 class Portal {
   collab: TCollabClass;
@@ -146,6 +147,11 @@ class Portal {
   ) => {
     if (updateType === WS_SUBTYPES.INIT && !syncAll) {
       throw new Error("syncAll must be true when sending SCENE.INIT");
+    }
+
+    // viewers never write; the server would drop it anyway
+    if (isSceneReadOnly()) {
+      return;
     }
 
     // sync out only the elements we think we need to to save bandwidth.

@@ -80,6 +80,13 @@
   }
 }
 
+.excalidraw-app__editor {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+}
+
 .excalidraw-app.is-collaborating {
   [data-testid="clear-canvas-button"] {
     display: none;

@@ -1,0 +1,98 @@
+@import "../../packages/excalidraw/css/variables.module.scss";
+
+.excalidraw {
+  .scene-sidebar-toggle {
+    @include outlineButtonStyles;
+    @include filledButtonOnCanvas;
+    width: var(--lg-button-size);
+    height: var(--lg-button-size);
+    flex-shrink: 0;
+    order: -1;
+
+    svg {
+      width: var(--lg-icon-size);
+      height: var(--lg-icon-size);
+    }
+
+    &.active {
+      --button-bg: var(--color-surface-mid);
+    }
+  }
+
+  .scene-title {
+    order: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    max-width: 18rem;
+    height: var(--lg-button-size);
+    font-family: var(--ui-font);
+
+    &__name {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--color-on-surface);
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1;
+      padding: 0.375rem 0.375rem;
+      border-radius: var(--border-radius-md);
+      max-width: 14rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: text;
+      text-align: left;
+
+      &:hover:not([disabled]) {
+        background-color: var(--color-surface-mid);
+      }
+
+      &--static {
+        cursor: default;
+      }
+    }
+
+    &__input {
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1;
+      padding: 0.3125rem 0.375rem;
+      border-radius: var(--border-radius-md);
+      border: 1px solid var(--color-primary);
+      background: var(--island-bg-color);
+      color: var(--color-on-surface);
+      width: 12rem;
+      outline: none;
+    }
+
+    &__status {
+      font-size: 0.75rem;
+      color: var(--color-gray-50);
+      white-space: nowrap;
+
+      &--error {
+        color: var(--color-danger);
+      }
+      &--offline {
+        color: var(--color-warning-dark);
+      }
+    }
+  }
+
+  &.theme--dark {
+    .scene-title__status {
+      color: var(--color-gray-40);
+    }
+  }
+}
+
+@media (max-width: 799px) {
+  .excalidraw .scene-sidebar-toggle {
+    display: none;
+  }
+}

@@ -36,7 +36,7 @@ import {
 } from "../app_constants";
 
 import { encodeFilesForUpload } from "./FileManager";
-import { saveFilesToFirebase } from "./firebase";
+import { saveFilesToServer } from "./server";
 
 import type { WS_SUBTYPES } from "../app_constants";
 
@@ -279,14 +279,14 @@ export const exportToBackend = async (
     });
     const json = await response.json();
     if (json.id) {
-      const url = new URL(window.location.href);
+      const url = new URL("/local", window.location.origin);
       // We need to store the key (and less importantly the id) as hash instead
       // of queryParam in order to never send it to the server
       url.hash = `json=${json.id},${encryptionKey}`;
       const urlString = url.toString();
 
-      await saveFilesToFirebase({
-        prefix: `/files/shareLinks/${json.id}`,
+      await saveFilesToServer({
+        prefix: `shareLinks/${json.id}`,
         files: filesToUpload,
       });
 

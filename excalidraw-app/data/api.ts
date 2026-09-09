@@ -121,7 +121,9 @@ const request = async (
 const json = async <T>(response: Response): Promise<T> =>
   (await response.json()) as T;
 
-const query = (params: Record<string, string | number | boolean | undefined>) => {
+const query = (
+  params: Record<string, string | number | boolean | undefined>,
+) => {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") {
@@ -134,12 +136,15 @@ const query = (params: Record<string, string | number | boolean | undefined>) =>
 
 export const api = {
   auth: {
-    config: () => request("GET", "/auth/config").then(json<AuthConfig>),
+    config: () =>
+      request("GET", "/auth/config").then((response) =>
+        json<AuthConfig>(response),
+      ),
     /** Resolves to `null` when signed out. */
     me: async (): Promise<User | null> => {
       try {
-        const { user } = await request("GET", "/auth/me").then(
-          json<{ user: User }>,
+        const { user } = await request("GET", "/auth/me").then((response) =>
+          json<{ user: User }>(response),
         );
         return user;
       } catch (error) {
@@ -170,10 +175,15 @@ export const api = {
           sort: params.sort,
           order: params.order,
         })}`,
-      ).then(json<{ scenes: SceneMeta[] }>),
+      ).then((response) => json<{ scenes: SceneMeta[] }>(response)),
     create: (data: { name?: string; collectionId?: string | null } = {}) =>
-      request("POST", "/scenes", { json: data }).then(json<SceneAccess>),
-    get: (id: string) => request("GET", `/scenes/${id}`).then(json<SceneAccess>),
+      request("POST", "/scenes", { json: data }).then((response) =>
+        json<SceneAccess>(response),
+      ),
+    get: (id: string) =>
+      request("GET", `/scenes/${id}`).then((response) =>
+        json<SceneAccess>(response),
+      ),
     update: (
       id: string,
       data: {
@@ -181,16 +191,21 @@ export const api = {
         collectionId?: string | null;
         shareMode?: ShareMode;
       },
-    ) => request("PATCH", `/scenes/${id}`, { json: data }).then(json<SceneMeta>),
+    ) =>
+      request("PATCH", `/scenes/${id}`, { json: data }).then((response) =>
+        json<SceneMeta>(response),
+      ),
     trash: (id: string) =>
       request("DELETE", `/scenes/${id}`).then(() => undefined),
     deletePermanently: (id: string) =>
       request("DELETE", `/scenes/${id}?permanent=1`).then(() => undefined),
     restore: (id: string) =>
-      request("POST", `/scenes/${id}/restore`).then(json<SceneMeta>),
+      request("POST", `/scenes/${id}/restore`).then((response) =>
+        json<SceneMeta>(response),
+      ),
     duplicate: (id: string, name?: string) =>
       request("POST", `/scenes/${id}/duplicate`, { json: { name } }).then(
-        json<SceneAccess>,
+        (response) => json<SceneAccess>(response),
       ),
     putThumbnail: (id: string, png: Blob) =>
       request("PUT", `/scenes/${id}/thumbnail`, {
@@ -203,16 +218,16 @@ export const api = {
 
   collections: {
     list: () =>
-      request("GET", "/collections").then(
-        json<{ collections: Collection[] }>,
+      request("GET", "/collections").then((response) =>
+        json<{ collections: Collection[] }>(response),
       ),
     create: (name: string) =>
-      request("POST", "/collections", { json: { name } }).then(
-        json<Collection>,
+      request("POST", "/collections", { json: { name } }).then((response) =>
+        json<Collection>(response),
       ),
     rename: (id: string, name: string) =>
       request("PATCH", `/collections/${id}`, { json: { name } }).then(
-        json<Collection>,
+        (response) => json<Collection>(response),
       ),
     remove: (id: string) =>
       request("DELETE", `/collections/${id}`).then(() => undefined),
@@ -235,8 +250,8 @@ export const api = {
     /** Resolves to `null` when the room has never been saved (404). */
     get: async (roomId: string): Promise<RoomPayload | null> => {
       try {
-        return await request("GET", `/rooms/${roomId}`).then(
-          json<RoomPayload>,
+        return await request("GET", `/rooms/${roomId}`).then((response) =>
+          json<RoomPayload>(response),
         );
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) {
@@ -258,14 +273,14 @@ export const api = {
         json: payload,
         headers:
           rev === null ? { "If-None-Match": "*" } : { "If-Match": `"${rev}"` },
-      }).then(json<{ rev: number }>),
+      }).then((response) => json<{ rev: number }>(response)),
     versions: (roomId: string) =>
-      request("GET", `/rooms/${roomId}/versions`).then(
-        json<{ versions: RoomVersion[] }>,
+      request("GET", `/rooms/${roomId}/versions`).then((response) =>
+        json<{ versions: RoomVersion[] }>(response),
       ),
     version: (roomId: string, rev: number) =>
-      request("GET", `/rooms/${roomId}/versions/${rev}`).then(
-        json<RoomPayload>,
+      request("GET", `/rooms/${roomId}/versions/${rev}`).then((response) =>
+        json<RoomPayload>(response),
       ),
   },
 
@@ -285,10 +300,14 @@ export const api = {
       request("POST", "/v2/post", {
         body: bytes as BodyInit,
         headers: { "Content-Type": "application/octet-stream" },
-      }).then(json<{ id: string }>),
+      }).then((response) => json<{ id: string }>(response)),
     url: (id: string) => `${API_BASE}/v2/${id}`,
   },
 };
 
-export const isApiError = (error: unknown, status?: number): error is ApiError =>
-  error instanceof ApiError && (status === undefined || error.status === status);
+export const isApiError = (
+  error: unknown,
+  status?: number,
+): error is ApiError =>
+  error instanceof ApiError &&
+  (status === undefined || error.status === status);

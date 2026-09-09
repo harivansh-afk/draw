@@ -1,0 +1,11 @@
+CREATE TABLE users(id TEXT PRIMARY KEY, issuer TEXT NOT NULL, subject TEXT NOT NULL, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, avatar_url TEXT NOT NULL, created_at TEXT NOT NULL, last_login_at TEXT NOT NULL, UNIQUE(issuer,subject));
+CREATE TABLE sessions(token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_seen_at TEXT NOT NULL);
+CREATE TABLE collections(id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id), name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE scenes(id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id), name TEXT NOT NULL, collection_id TEXT REFERENCES collections(id) ON DELETE SET NULL, room_key TEXT NOT NULL, share_mode TEXT NOT NULL CHECK(share_mode IN ('private','view','edit')), created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, thumbnail_updated_at TEXT);
+CREATE TABLE rooms(id TEXT PRIMARY KEY, rev INTEGER NOT NULL, scene_version INTEGER NOT NULL, iv BLOB NOT NULL, ciphertext BLOB NOT NULL, created_by TEXT REFERENCES users(id), updated_at TEXT NOT NULL);
+CREATE TABLE room_versions(room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE, rev INTEGER NOT NULL, scene_version INTEGER NOT NULL, iv BLOB NOT NULL, ciphertext BLOB NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(room_id,rev));
+CREATE TABLE snapshots(id TEXT PRIMARY KEY, data BLOB NOT NULL, created_at TEXT NOT NULL, ip TEXT NOT NULL);
+CREATE TABLE libraries(user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, data BLOB NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE INDEX scenes_owner ON scenes(owner_id,deleted_at,updated_at);
+CREATE INDEX sessions_expiry ON sessions(expires_at);

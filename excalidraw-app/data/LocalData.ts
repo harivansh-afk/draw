@@ -253,6 +253,10 @@ export class LibraryIndexedDBAdapter {
       LibraryIndexedDBAdapter.store,
     );
   }
+
+  static clear(): MaybePromise<void> {
+    return del(LibraryIndexedDBAdapter.key, LibraryIndexedDBAdapter.store);
+  }
 }
 
 /** LS Adapter used only for migrating LS library data

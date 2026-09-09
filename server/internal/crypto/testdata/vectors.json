@@ -1,0 +1,43 @@
+[
+  {
+    "name": "room",
+    "key": "AAECAwQFBgcICQoLDA0ODw",
+    "iv": "AAECAwQFBgcICQoL",
+    "plaintext": "W3siaWQiOiJyZWN0YW5nbGUiLCJ2ZXJzaW9uIjo3LCJ0ZXh0IjoiSGVsbG8g5LiW55WMIn1d",
+    "ciphertext": "yBeFpwI5zXY5twL+V80XZNYENsQliI+Fj06fDy5zjk7xwaOD1rqVqyWYZYjgbW8EKwqY0nnaXXHBoae158eRIxP/rBIxDQ==",
+    "metadata": null,
+    "envelope": "AAAAAQAAADt7InZlcnNpb24iOjIsImNvbXByZXNzaW9uIjoicGFrb0AxIiwiZW5jcnlwdGlvbiI6IkFFUy1HQ00ifQAAAAwAAQIDBAUGBwgJCgsAAABc6/DErgZ7kzQrsqih+2px2tX3z6zKxLegrGRY5DHN24W8DZHNvuUepoVt8J6K3zGohrq95SHHX/T60u6uL2stQqeRL+0LV8EeTs9kjBGs0CoQlGf/lAGxFMGFkso="
+  },
+  {
+    "name": "file",
+    "key": "AAECAwQFBgcICQoLDA0ODw",
+    "iv": "DA0ODxAREhMUFRYX",
+    "plaintext": "ZGF0YTppbWFnZS9wbmc7YmFzZTY0LGlWQk9SdzBLR2dvPQ==",
+    "ciphertext": "8FOoz3exTNfriqApTCTKibGlvYoayes3T+tXCbBoKwxVDSGoinN2s01q8J/xntXk3XQ=",
+    "metadata": {
+      "id": "image1",
+      "mimeType": "image/png",
+      "created": 1700000000000,
+      "lastRetrieved": 1700000000001
+    },
+    "envelope": "AAAAAQAAADt7InZlcnNpb24iOjIsImNvbXByZXNzaW9uIjoicGFrb0AxIiwiZW5jcnlwdGlvbiI6IkFFUy1HQ00ifQAAAAwMDQ4PEBESExQVFhcAAAB77K6/zi24RdbsZyYP6A+gWYIcFPFiqrc13/XPs0xuYcIWeO+HBSmAVr5JYrnefy3UaX6eg/IKNS7Uc5h9CWzSwhkvu/hLSF6UmZ9VyOWIerZDOr7C13e3Ud09oosj+gfXRPnw7xGDc5PhjT+lMmc2SkqdHmVv50s0hCT9"
+  },
+  {
+    "name": "snapshot",
+    "key": "AAECAwQFBgcICQoLDA0ODw",
+    "iv": "GBkaGxwdHh8gISIj",
+    "plaintext": "eyJ0eXBlIjoiZXhjYWxpZHJhdyIsImVsZW1lbnRzIjpbXX0=",
+    "ciphertext": "Tpq3gTvXTKLXQDkVSLnbedX+Lz2MBwdUwuliAnKjvjdLgZ3zO9Xsime53Xxi9vG0FH6H",
+    "metadata": null,
+    "envelope": "AAAAAQAAADt7InZlcnNpb24iOjIsImNvbXByZXNzaW9uIjoicGFrb0AxIiwiZW5jcnlwdGlvbiI6IkFFUy1HQ00ifQAAAAwYGRobHB0eHyAhIiMAAABJTSSgmCvSCviVRYhd5Byzz21KEjo1IMty8c6uec9ZpZQ5mWmqhnxnP4ay048X5Yau+wbpSQkXEnICiM5Q+lV5gKMcJKtKf2+SFA=="
+  },
+  {
+    "name": "empty",
+    "key": "AAECAwQFBgcICQoLDA0ODw",
+    "iv": "JCUmJygpKissLS4v",
+    "plaintext": "",
+    "ciphertext": "EYRoMv0v1A+mM+WHU/ZE0w==",
+    "metadata": null,
+    "envelope": "AAAAAQAAADt7InZlcnNpb24iOjIsImNvbXByZXNzaW9uIjoicGFrb0AxIiwiZW5jcnlwdGlvbiI6IkFFUy1HQ00ifQAAAAwkJSYnKCkqKywtLi8AAAAm5AzXDZZ7MjBJxarKbp0Q0vzWgubvxaSvxxQs8vmJdOblcwHWY/U="
+  }
+]

@@ -57,12 +57,12 @@
             pname = "draw";
             inherit version;
             src = ./server;
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            vendorHash = "sha256-K3hBL0mpX4EX2OG9J+UXXAX8Jkw5/sL7RLvWFaC6qFk=";
             subPackages = [ "cmd/draw" ];
             ldflags = [
               "-s"
               "-w"
-              "-X main.version=${version}"
+              "-X git.harivan.sh/harivansh-afk/draw/server/internal/api.Version=${version}"
             ];
             preBuild = ''
               rm -rf web/dist
