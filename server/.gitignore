@@ -1,0 +1,4 @@
+/web/dist/*
+!/web/dist/index.html
+/data/
+/draw
