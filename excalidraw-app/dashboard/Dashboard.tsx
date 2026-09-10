@@ -10,22 +10,28 @@ import React, {
 import { api } from "../data/api";
 
 import { ActivityRail } from "./Activity";
+import { CommandPalette } from "./CommandPalette";
 import { ConfirmDialog, MoveDialog, ShareDialog } from "./dialogs";
 import { Header, ImportButton } from "./Header";
 import { importSceneFile, isExcalidrawFile } from "./importScene";
+import { formatKeys } from "./keyboard/format";
+import { columnsOf } from "./keyboard/grid";
+import { useKeyEngine } from "./keyboard/useKeyEngine";
 import { editorPath, navigate } from "./router";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
+import { ShortcutsHelp } from "./ShortcutsHelp";
 import { Sidebar } from "./Sidebar";
 import { filterScenes, nextUntitledName, sortScenes } from "./state";
 import { createBackfill, generateThumbnail } from "./thumbnails";
-import { Button, errorMessage, useToast } from "./ui";
+import { Button, errorMessage, Kbd, useToast } from "./ui";
 
 import type { Activity, Collection, SceneMeta, User } from "../data/api";
+import type { CommandContext } from "./keyboard/commands";
 import type { DashboardRoute } from "./router";
 import type { SceneActions } from "./SceneCard";
 import type { Backfill } from "./thumbnails";
 import type { SortKey } from "./state";
-import type { ThemePreference } from "./theme";
+import type { ResolvedTheme, ThemePreference } from "./theme";
 
 const SORT_STORAGE_KEY = "draw-dashboard-sort";
 
@@ -53,12 +59,14 @@ export const Dashboard = ({
   route,
   user,
   themePreference,
+  theme,
   onThemeChange,
   onSignedOut,
 }: {
   route: Extract<DashboardRoute, { view: "scenes" | "trash" }>;
   user: User;
   themePreference: ThemePreference;
+  theme: ResolvedTheme;
   onThemeChange: (preference: ThemePreference) => void;
   onSignedOut: () => void;
 }) => {
@@ -81,7 +89,11 @@ export const Dashboard = ({
   const [thumbVersions, setThumbVersions] = useState<Record<string, string>>(
     {},
   );
+  const [cursorId, setCursorId] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<"palette" | "help" | null>(null);
+  const [createRequest, setCreateRequest] = useState(0);
   const dragDepth = useRef(0);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -197,6 +209,28 @@ export const Dashboard = ({
   }, [inTrash, visibleScenes]);
 
   const searching = query.trim().length > 0;
+
+  const cursorIndex = useMemo(() => {
+    if (!visibleScenes || !cursorId) {
+      return null;
+    }
+    const index = visibleScenes.findIndex((scene) => scene.id === cursorId);
+    return index === -1 ? null : index;
+  }, [visibleScenes, cursorId]);
+  const cursor = cursorIndex === null ? null : visibleScenes![cursorIndex];
+
+  useEffect(() => {
+    if (!cursorId) {
+      return;
+    }
+    gridRef.current
+      ?.querySelector<HTMLElement>(`[data-scene-id="${cursorId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [cursorId]);
+
+  useEffect(() => {
+    setCursorId(null);
+  }, [route.view, collectionId]);
 
   const patchScene = (updated: SceneMeta) =>
     setScenes((current) =>
@@ -333,6 +367,89 @@ export const Dashboard = ({
     }
   };
 
+  // Removing the card under the cursor hands the cursor to its neighbour,
+  // the way `dd` leaves you on the next line.
+  const cursorToNeighbour = (scene: SceneMeta) => {
+    const list = visibleScenes ?? [];
+    const index = list.findIndex((s) => s.id === scene.id);
+    const next = list[index + 1] ?? list[index - 1] ?? null;
+    setCursorId(next ? next.id : null);
+  };
+
+  const ctx: CommandContext = {
+    view: route.view,
+    collectionId,
+    collections,
+    scenes: visibleScenes ?? [],
+    cursor,
+    cursorIndex,
+    get searchActive() {
+      return (
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.hasAttribute("data-dash-search")
+      );
+    },
+    query,
+    sidebarOpen,
+    columns: () => columnsOf(gridRef.current),
+    setCursorIndex: (index) =>
+      setCursorId(index === null ? null : visibleScenes?.[index]?.id ?? null),
+    setCursorId,
+    navigate: (next) => {
+      navigate(next);
+      setSidebarOpen(false);
+    },
+    createScene,
+    openImport: () =>
+      document.querySelector<HTMLInputElement>("[data-dash-import]")?.click(),
+    focusSearch: () => {
+      const input =
+        document.querySelector<HTMLInputElement>("[data-dash-search]");
+      setSidebarOpen(true);
+      input?.focus();
+      input?.select();
+    },
+    clearSearch: () => setQuery(""),
+    blurSearch: () => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    },
+    closeSidebar: () => setSidebarOpen(false),
+    setSort,
+    toggleTheme: () => onThemeChange(theme === "dark" ? "light" : "dark"),
+    openPalette: () => setOverlay("palette"),
+    openHelp: () => setOverlay("help"),
+    emptyTrash: () => setDialog({ kind: "emptyTrash" }),
+    newCollection: () => {
+      setSidebarOpen(true);
+      setCreateRequest((n) => n + 1);
+    },
+    signOut,
+    scene: {
+      rename: (scene) => setRenamingId(scene.id),
+      share: actions.share,
+      move: actions.move,
+      duplicate: (scene) => {
+        actions.duplicate(scene);
+      },
+      remove: (scene) => {
+        if (inTrash) {
+          actions.deletePermanently(scene);
+        } else {
+          cursorToNeighbour(scene);
+          actions.trash(scene);
+        }
+      },
+      restore: (scene) => {
+        cursorToNeighbour(scene);
+        actions.restore(scene);
+      },
+    },
+  };
+
+  const { pending } = useKeyEngine(ctx);
+
   const headerTitle = inTrash
     ? "trash"
     : currentCollection
@@ -402,6 +519,7 @@ export const Dashboard = ({
         }}
         onSignOut={signOut}
         onNavigate={() => setSidebarOpen(false)}
+        createRequest={createRequest}
       />
       <main
         className={clsx("dash-main", { "dash-main--dragging": dragging })}
@@ -469,7 +587,7 @@ export const Dashboard = ({
                 collectionName={currentCollection?.name}
               />
             ) : (
-              <div className="dash-grid">
+              <div className="dash-grid" ref={gridRef}>
                 {visibleScenes.map((scene) => (
                   <SceneCard
                     key={scene.id}
@@ -479,6 +597,7 @@ export const Dashboard = ({
                     now={now}
                     thumbVersion={thumbVersions[scene.id]}
                     renaming={renamingId === scene.id}
+                    cursor={scene.id === cursorId}
                     onRenameStart={() => setRenamingId(scene.id)}
                     onRenameEnd={() => setRenamingId(null)}
                   />
@@ -497,7 +616,19 @@ export const Dashboard = ({
           </div>
           <ActivityRail entries={activity} userId={user.id} now={now} />
         </div>
+        {pending.length > 0 && (
+          <div className="dash-pending" aria-live="polite">
+            <Kbd keys={formatKeys(pending)} />
+          </div>
+        )}
       </main>
+
+      {overlay === "palette" && (
+        <CommandPalette ctx={ctx} onClose={() => setOverlay(null)} />
+      )}
+      {overlay === "help" && (
+        <ShortcutsHelp ctx={ctx} onClose={() => setOverlay(null)} />
+      )}
 
       {dialog?.kind === "share" && (
         <ShareDialog

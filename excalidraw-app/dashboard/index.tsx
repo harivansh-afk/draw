@@ -62,6 +62,7 @@ export const DashboardApp: React.FC = () => {
         route={route}
         user={user}
         themePreference={preference}
+        theme={theme}
         onThemeChange={setPreference}
         onSignedOut={() => {
           setUser(null);

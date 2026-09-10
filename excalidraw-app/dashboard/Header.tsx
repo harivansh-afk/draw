@@ -92,6 +92,7 @@ export const ImportButton = ({
       </Button>
       <input
         ref={fileInput}
+        data-dash-import
         type="file"
         accept=".excalidraw,.json,application/json,application/vnd.excalidraw+json"
         multiple

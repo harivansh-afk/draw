@@ -46,6 +46,7 @@ export const Sidebar = ({
   onDeleteCollection,
   onSignOut,
   onNavigate,
+  createRequest = 0,
 }: {
   route: DashboardRoute;
   user: User;
@@ -59,6 +60,8 @@ export const Sidebar = ({
   onDeleteCollection: (id: string) => Promise<void>;
   onSignOut: () => void;
   onNavigate: () => void;
+  /** bumped by the `c` command to start a new collection from the keyboard */
+  createRequest?: number;
 }) => {
   const [creating, setCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -69,6 +72,12 @@ export const Sidebar = ({
   useEffect(() => {
     setDraft(query);
   }, [query]);
+
+  useEffect(() => {
+    if (createRequest > 0) {
+      setCreating(true);
+    }
+  }, [createRequest]);
 
   useEffect(() => {
     if (draft === query) {
