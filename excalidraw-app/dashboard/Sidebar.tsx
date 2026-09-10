@@ -17,7 +17,7 @@ import {
   SunIcon,
   TrashIcon,
 } from "./icons";
-import { IconButton, Menu, useMenu } from "./ui";
+import { IconButton, Kbd, Menu, useMenu } from "./ui";
 
 import type { Collection, User } from "../data/api";
 import type { DashboardRoute } from "./router";
@@ -28,9 +28,9 @@ const THEME_ITEMS: {
   label: string;
   icon: React.ReactNode;
 }[] = [
-  { value: "light", label: "Light", icon: SunIcon },
-  { value: "dark", label: "Dark", icon: MoonIcon },
-  { value: "system", label: "System", icon: DeviceDesktopIcon },
+  { value: "light", label: "light", icon: SunIcon },
+  { value: "dark", label: "dark", icon: MoonIcon },
+  { value: "system", label: "system", icon: DeviceDesktopIcon },
 ];
 
 export const Sidebar = ({
@@ -96,7 +96,7 @@ export const Sidebar = ({
         aria-expanded={workspaceMenu.isOpen}
       >
         <Avatar user={user} size={36} />
-        <span className="dash-workspace__name">Personal</span>
+        <span className="dash-workspace__name">personal</span>
         <span className="dash-workspace__chevron">{chevronUpDownIcon}</span>
       </button>
       {workspaceMenu.isOpen && (
@@ -107,7 +107,7 @@ export const Sidebar = ({
           minWidth={220}
           items={[
             { kind: "heading", label: user.email },
-            { label: "Sign out", icon: logoutIcon, onSelect: onSignOut },
+            { label: "sign out", icon: logoutIcon, onSelect: onSignOut },
           ]}
         />
       )}
@@ -116,8 +116,9 @@ export const Sidebar = ({
         <span className="dash-search__icon">{searchIcon}</span>
         <input
           type="search"
-          placeholder="Quick search"
+          placeholder="search"
           aria-label="Search scenes"
+          data-dash-search
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -128,19 +129,20 @@ export const Sidebar = ({
             }
           }}
         />
+        {!draft && <Kbd keys="/" />}
       </label>
 
       <div className="dash-sidebar__nav">
         <NavRow
           icon={layoutGridIcon}
-          label="Dashboard"
+          label="dashboard"
           active={route.view === "scenes" && !route.collectionId}
           href="/"
           onSelect={() => go({ view: "scenes", collectionId: null })}
         />
         <NavRow
           icon={TrashIcon}
-          label="Trash"
+          label="trash"
           active={route.view === "trash"}
           href="/trash"
           onSelect={() => go({ view: "trash" })}
@@ -149,7 +151,7 @@ export const Sidebar = ({
 
       <div className="dash-sidebar__collections">
         <div className="dash-sidebar__heading">
-          <span>Collections</span>
+          <span>collections</span>
           <button
             type="button"
             className="dash-sidebar__add"
@@ -163,7 +165,7 @@ export const Sidebar = ({
         <div className="dash-sidebar__list">
           {creating && (
             <InlineName
-              placeholder="Collection name"
+              placeholder="collection name"
               onCommit={async (name) => {
                 setCreating(false);
                 if (name) {
@@ -174,9 +176,7 @@ export const Sidebar = ({
             />
           )}
           {collections.length === 0 && !creating && (
-            <div className="dash-sidebar__empty">
-              Group scenes into collections.
-            </div>
+            <div className="dash-sidebar__empty">no collections yet.</div>
           )}
           {collections.map((collection) =>
             renamingId === collection.id ? (
@@ -229,7 +229,7 @@ export const Sidebar = ({
             onClose={themeMenu.close}
             minWidth={160}
             items={[
-              { kind: "heading", label: "Theme" },
+              { kind: "heading", label: "theme" },
               ...THEME_ITEMS.map((item) => ({
                 label: item.label,
                 icon: item.icon,
@@ -359,9 +359,9 @@ const CollectionRow = ({
           onClose={menu.close}
           minWidth={180}
           items={[
-            { label: "Rename", onSelect: onRename },
+            { label: "rename", onSelect: onRename },
             { kind: "separator" },
-            { label: "Delete collection", danger: true, onSelect: onDelete },
+            { label: "delete collection", danger: true, onSelect: onDelete },
           ]}
         />
       )}

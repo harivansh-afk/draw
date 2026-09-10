@@ -10,7 +10,6 @@ import {
   DuplicateIcon,
   folderMoveIcon,
   LinkIcon,
-  LockedIcon,
   pencilIcon,
   restoreIcon,
   shareIcon,
@@ -34,23 +33,24 @@ export type SceneActions = {
 
 export const SceneCard = ({
   scene,
-  ownerName,
   inTrash,
   actions,
   now,
   thumbVersion,
   renaming,
+  cursor,
   onRenameStart,
   onRenameEnd,
 }: {
   scene: SceneMeta;
-  ownerName: string;
   inTrash: boolean;
   actions: SceneActions;
   now: number;
   /** cache buster for a thumbnail generated after the list was loaded */
   thumbVersion?: string;
   renaming: boolean;
+  /** keyboard cursor: the card the vim motions act on */
+  cursor?: boolean;
   onRenameStart: () => void;
   onRenameEnd: () => void;
 }) => {
@@ -66,40 +66,51 @@ export const SceneCard = ({
   const items: MenuItem[] = inTrash
     ? [
         {
-          label: "Restore",
+          label: "restore",
           icon: restoreIcon,
+          hint: "u",
           onSelect: () => actions.restore(scene),
         },
         { kind: "separator" },
         {
-          label: "Delete permanently",
+          label: "delete permanently",
           icon: TrashIcon,
           danger: true,
+          hint: "d d",
           onSelect: () => actions.deletePermanently(scene),
         },
       ]
     : [
-        { label: "Rename", icon: pencilIcon, onSelect: onRenameStart },
         {
-          label: "Share",
+          label: "rename",
+          icon: pencilIcon,
+          hint: "r",
+          onSelect: onRenameStart,
+        },
+        {
+          label: "share",
           icon: shareIcon,
+          hint: "s",
           onSelect: () => actions.share(scene),
         },
         {
-          label: "Duplicate",
+          label: "duplicate",
           icon: DuplicateIcon,
+          hint: "y",
           onSelect: () => actions.duplicate(scene),
         },
         {
-          label: "Move",
+          label: "move",
           icon: folderMoveIcon,
+          hint: "m",
           onSelect: () => actions.move(scene),
         },
         { kind: "separator" },
         {
-          label: "Move to trash",
+          label: "move to trash",
           icon: TrashIcon,
           danger: true,
+          hint: "d d",
           onSelect: () => actions.trash(scene),
         },
       ];
@@ -110,9 +121,11 @@ export const SceneCard = ({
   return (
     <article
       ref={cardRef}
+      data-scene-id={scene.id}
       className={clsx("dash-card", {
         "dash-card--menu-open": menu.isOpen,
         "dash-card--trashed": inTrash,
+        "dash-card--cursor": cursor,
       })}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -148,11 +161,6 @@ export const SceneCard = ({
               {inTrash ? trashSceneIcon : null}
             </div>
           )}
-          <span className="dash-card__time">
-            {inTrash && scene.deletedAt
-              ? `Deleted ${relativeTime(scene.deletedAt, now)}`
-              : relativeTime(scene.updatedAt, now)}
-          </span>
         </div>
         <div className="dash-card__meta">
           {renaming ? (
@@ -181,21 +189,18 @@ export const SceneCard = ({
             </h3>
           )}
           <div className="dash-card__row">
-            {inTrash ? (
-              <span className="dash-card__owner dash-card__owner--icon">
-                {LockedIcon}
-                {shared ? "Shared" : "Private"}
-              </span>
-            ) : (
-              <span className="dash-card__owner">by {ownerName}</span>
-            )}
+            <span className="dash-card__time">
+              {inTrash && scene.deletedAt
+                ? `deleted ${relativeTime(scene.deletedAt, now)}`
+                : relativeTime(scene.updatedAt, now)}
+            </span>
             {shared && !inTrash && (
               <span
                 className="dash-card__shared"
                 title={
                   scene.shareMode === "edit"
-                    ? "Anyone with the link can edit"
-                    : "Anyone with the link can view"
+                    ? "anyone with the link can edit"
+                    : "anyone with the link can view"
                 }
               >
                 {LinkIcon}

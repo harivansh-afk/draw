@@ -9,16 +9,10 @@ import React, {
 
 import { api } from "../data/api";
 
+import { ActivityRail } from "./Activity";
 import { ConfirmDialog, MoveDialog, ShareDialog } from "./dialogs";
-import { ActionTiles, Header } from "./Header";
+import { Header, ImportButton } from "./Header";
 import { importSceneFile, isExcalidrawFile } from "./importScene";
-import {
-  collectionIcon,
-  layoutGridIcon,
-  pencilIcon,
-  TrashIcon,
-  uploadIcon,
-} from "./icons";
 import { editorPath, navigate } from "./router";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { Sidebar } from "./Sidebar";
@@ -26,7 +20,7 @@ import { filterScenes, nextUntitledName, sortScenes } from "./state";
 import { createBackfill, generateThumbnail } from "./thumbnails";
 import { Button, errorMessage, useToast } from "./ui";
 
-import type { Collection, SceneMeta, User } from "../data/api";
+import type { Activity, Collection, SceneMeta, User } from "../data/api";
 import type { DashboardRoute } from "./router";
 import type { SceneActions } from "./SceneCard";
 import type { Backfill } from "./thumbnails";
@@ -74,6 +68,7 @@ export const Dashboard = ({
 
   const [scenes, setScenes] = useState<SceneMeta[] | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [activity, setActivity] = useState<Activity[] | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSortState] = useState<SortKey>(readSort);
   const [creating, setCreating] = useState(false);
@@ -120,13 +115,18 @@ export const Dashboard = ({
     setScenes(scenes);
   }, [inTrash, collectionId, sort]);
 
+  const loadActivity = useCallback(async () => {
+    const { activity } = await api.activity.list();
+    setActivity(activity);
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
-      await Promise.all([loadScenes(), loadCollections()]);
+      await Promise.all([loadScenes(), loadCollections(), loadActivity()]);
     } catch (error) {
-      toast.push(errorMessage(error, "Could not load scenes"));
+      toast.push(errorMessage(error, "could not load scenes"));
     }
-  }, [loadScenes, loadCollections, toast]);
+  }, [loadScenes, loadCollections, loadActivity, toast]);
 
   useEffect(() => {
     setScenes(null);
@@ -219,6 +219,8 @@ export const Dashboard = ({
       await action();
       if (reload) {
         await refresh();
+      } else {
+        await loadActivity().catch(() => undefined);
       }
     } catch (error) {
       toast.push(errorMessage(error, failure));
@@ -238,7 +240,7 @@ export const Dashboard = ({
       });
       window.location.assign(editorPath(access.scene.id));
     } catch (error) {
-      toast.push(errorMessage(error, "Could not create a scene"));
+      toast.push(errorMessage(error, "could not create a scene"));
       setCreating(false);
     }
   };
@@ -246,7 +248,7 @@ export const Dashboard = ({
   const importFiles = async (files: FileList | File[]) => {
     const list = Array.from(files).filter(isExcalidrawFile);
     if (!list.length) {
-      toast.push("Drop .excalidraw files to import them");
+      toast.push("drop .excalidraw files to import them");
       return;
     }
     setImporting((count) => count + list.length);
@@ -256,14 +258,14 @@ export const Dashboard = ({
         await importSceneFile(file, collectionId);
         imported++;
       } catch (error) {
-        toast.push(errorMessage(error, `Could not import ${file.name}`));
+        toast.push(errorMessage(error, `could not import ${file.name}`));
       } finally {
         setImporting((count) => count - 1);
       }
     }
     if (imported) {
       toast.push(
-        imported === 1 ? "Imported 1 scene" : `Imported ${imported} scenes`,
+        imported === 1 ? "imported 1 scene" : `imported ${imported} scenes`,
         "info",
       );
     }
@@ -277,25 +279,25 @@ export const Dashboard = ({
           patchScene({ ...scene, name });
           patchScene(await api.scenes.update(scene.id, { name }));
         },
-        "Could not rename",
+        "could not rename",
         false,
       ),
     duplicate: (scene) =>
       run(async () => {
         await api.scenes.duplicate(scene.id);
-      }, "Could not duplicate"),
+      }, "could not duplicate"),
     move: (scene) => setDialog({ kind: "move", scene }),
     share: (scene) => setDialog({ kind: "share", scene }),
     trash: (scene) =>
       run(async () => {
         removeScene(scene.id);
         await api.scenes.trash(scene.id);
-      }, "Could not move to trash"),
+      }, "could not move to trash"),
     restore: (scene) =>
       run(async () => {
         removeScene(scene.id);
         await api.scenes.restore(scene.id);
-      }, "Could not restore"),
+      }, "could not restore"),
     deletePermanently: (scene) => setDialog({ kind: "delete", scene }),
   };
 
@@ -332,42 +334,35 @@ export const Dashboard = ({
   };
 
   const headerTitle = inTrash
-    ? "Trash"
+    ? "trash"
     : currentCollection
     ? currentCollection.name
-    : "Dashboard";
-  const headerIcon = inTrash
-    ? TrashIcon
-    : currentCollection
-    ? collectionIcon
-    : layoutGridIcon;
+    : "dashboard";
 
-  const headerAction = inTrash ? (
+  const headerActions = inTrash ? (
     <Button
       variant="danger-outline"
       disabled={!scenes || scenes.length === 0}
       onClick={() => setDialog({ kind: "emptyTrash" })}
     >
-      Empty trash permanently
+      empty trash
     </Button>
-  ) : !currentCollection ? (
-    <Button
-      variant="primary"
-      icon={pencilIcon}
-      busy={creating}
-      onClick={createScene}
-    >
-      Start drawing
-    </Button>
-  ) : null;
+  ) : (
+    <>
+      <ImportButton onImport={importFiles} hint="i" />
+      <Button variant="primary" hint="n" busy={creating} onClick={createScene}>
+        new scene
+      </Button>
+    </>
+  );
 
-  const sectionTitle = searching
-    ? `Results for “${query.trim()}”`
+  const sectionLabel = searching
+    ? `results for “${query.trim()}”`
     : inTrash
     ? null
     : currentCollection
-    ? null
-    : "Recently modified by you";
+    ? "scenes"
+    : "recent";
 
   return (
     <div
@@ -392,12 +387,12 @@ export const Dashboard = ({
           run(async () => {
             const created = await api.collections.create(name);
             navigate({ view: "scenes", collectionId: created.id });
-          }, "Could not create the collection")
+          }, "could not create the collection")
         }
         onRenameCollection={(id, name) =>
           run(async () => {
             await api.collections.rename(id, name);
-          }, "Could not rename the collection")
+          }, "could not rename the collection")
         }
         onDeleteCollection={async (id) => {
           const collection = collections.find((c) => c.id === id);
@@ -420,85 +415,88 @@ export const Dashboard = ({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
-        <Header
-          icon={headerIcon}
-          title={headerTitle}
-          subtitle={
-            inTrash && scenes
-              ? `${scenes.length} deleted ${
-                  scenes.length === 1 ? "scene" : "scenes"
-                } · Restore or remove permanently`
-              : undefined
-          }
-          sort={sort}
-          onSortChange={setSort}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
-          action={headerAction}
-        />
+        <div className="dash-main__inner">
+          <div className="dash-content">
+            <Header
+              title={headerTitle}
+              subtitle={
+                inTrash && scenes
+                  ? `${scenes.length} deleted ${
+                      scenes.length === 1 ? "scene" : "scenes"
+                    } · restore or remove permanently`
+                  : undefined
+              }
+              sort={sort}
+              onSortChange={setSort}
+              onToggleSidebar={() => setSidebarOpen((open) => !open)}
+              actions={headerActions}
+            />
 
-        {!inTrash && (
-          <ActionTiles
-            onImport={importFiles}
-            onCreate={createScene}
-            creating={creating}
-          />
-        )}
+            {importing > 0 && (
+              <div className="dash-notice dash-notice--busy">
+                <span className="dash-spinner" />
+                importing {importing} {importing === 1 ? "file" : "files"}…
+              </div>
+            )}
 
-        {importing > 0 && (
-          <div className="dash-notice dash-notice--busy">
-            <span className="dash-spinner" />
-            Importing {importing} {importing === 1 ? "file" : "files"}…
-          </div>
-        )}
+            {inTrash && (
+              <div className="dash-notice">
+                scenes in the trash are deleted after 30 days.
+              </div>
+            )}
 
-        {inTrash && (
-          <div className="dash-notice">
-            Scenes in the trash are deleted after 30 days.
-          </div>
-        )}
+            {sectionLabel && (
+              <h2 className="dash-label">
+                {sectionLabel}
+                {visibleScenes && (
+                  <span className="dash-label__count">
+                    {visibleScenes.length}
+                  </span>
+                )}
+              </h2>
+            )}
 
-        {sectionTitle && <h2 className="dash-section-title">{sectionTitle}</h2>}
-
-        {visibleScenes === null ? (
-          <div className="dash-grid" aria-busy>
-            {Array.from({ length: 8 }, (_, i) => (
-              <SceneCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : visibleScenes.length === 0 ? (
-          <EmptyState
-            inTrash={inTrash}
-            searching={searching}
-            collectionName={currentCollection?.name}
-          />
-        ) : (
-          <div className="dash-grid">
-            {visibleScenes.map((scene) => (
-              <SceneCard
-                key={scene.id}
-                scene={scene}
-                ownerName={user.name || user.email}
+            {visibleScenes === null ? (
+              <div className="dash-grid" aria-busy>
+                {Array.from({ length: 8 }, (_, i) => (
+                  <SceneCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : visibleScenes.length === 0 ? (
+              <EmptyState
                 inTrash={inTrash}
-                actions={actions}
-                now={now}
-                thumbVersion={thumbVersions[scene.id]}
-                renaming={renamingId === scene.id}
-                onRenameStart={() => setRenamingId(scene.id)}
-                onRenameEnd={() => setRenamingId(null)}
+                searching={searching}
+                collectionName={currentCollection?.name}
               />
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="dash-grid">
+                {visibleScenes.map((scene) => (
+                  <SceneCard
+                    key={scene.id}
+                    scene={scene}
+                    inTrash={inTrash}
+                    actions={actions}
+                    now={now}
+                    thumbVersion={thumbVersions[scene.id]}
+                    renaming={renamingId === scene.id}
+                    onRenameStart={() => setRenamingId(scene.id)}
+                    onRenameEnd={() => setRenamingId(null)}
+                  />
+                ))}
+              </div>
+            )}
 
-        {dragging && (
-          <div className="dash-dropzone" aria-hidden>
-            <div className="dash-dropzone__card">
-              <span className="dash-dropzone__icon">{uploadIcon}</span>
-              Drop .excalidraw files to import them
-              {currentCollection ? ` into ${currentCollection.name}` : ""}
-            </div>
+            {dragging && (
+              <div className="dash-dropzone" aria-hidden>
+                <div className="dash-dropzone__card">
+                  drop .excalidraw files to import them
+                  {currentCollection ? ` into ${currentCollection.name}` : ""}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          <ActivityRail entries={activity} userId={user.id} now={now} />
+        </div>
       </main>
 
       {dialog?.kind === "share" && (
@@ -508,6 +506,7 @@ export const Dashboard = ({
           onChange={(scene) => {
             patchScene(scene);
             setDialog({ kind: "share", scene });
+            loadActivity().catch(() => undefined);
           }}
         />
       )}
@@ -521,32 +520,32 @@ export const Dashboard = ({
               await api.scenes.update(dialog.scene.id, {
                 collectionId: target,
               });
-            }, "Could not move the scene")
+            }, "could not move the scene")
           }
         />
       )}
       {dialog?.kind === "delete" && (
         <ConfirmDialog
-          title="Delete permanently?"
-          body={`“${dialog.scene.name}” and its history will be deleted for everyone. This cannot be undone.`}
-          confirmLabel="Delete permanently"
+          title="delete permanently?"
+          body={`“${dialog.scene.name}” and its history will be deleted for everyone. this cannot be undone.`}
+          confirmLabel="delete permanently"
           danger
           onClose={() => setDialog(null)}
           onConfirm={() =>
             run(async () => {
               removeScene(dialog.scene.id);
               await api.scenes.deletePermanently(dialog.scene.id);
-            }, "Could not delete the scene")
+            }, "could not delete the scene")
           }
         />
       )}
       {dialog?.kind === "emptyTrash" && (
         <ConfirmDialog
-          title="Empty the trash?"
+          title="empty the trash?"
           body={`${scenes?.length ?? 0} ${
             scenes?.length === 1 ? "scene" : "scenes"
-          } will be deleted for everyone. This cannot be undone.`}
-          confirmLabel="Delete everything"
+          } will be deleted for everyone. this cannot be undone.`}
+          confirmLabel="delete everything"
           danger
           onClose={() => setDialog(null)}
           onConfirm={() =>
@@ -556,15 +555,15 @@ export const Dashboard = ({
               await Promise.all(
                 ids.map((id) => api.scenes.deletePermanently(id)),
               );
-            }, "Could not empty the trash")
+            }, "could not empty the trash")
           }
         />
       )}
       {dialog?.kind === "deleteCollection" && (
         <ConfirmDialog
-          title={`Delete “${dialog.collection.name}”?`}
-          body="The scenes inside stay in your dashboard; only the collection is removed."
-          confirmLabel="Delete collection"
+          title={`delete “${dialog.collection.name}”?`}
+          body="the scenes inside stay in your dashboard; only the collection is removed."
+          confirmLabel="delete collection"
           danger
           onClose={() => setDialog(null)}
           onConfirm={() =>
@@ -573,7 +572,7 @@ export const Dashboard = ({
               if (collectionId === dialog.collection.id) {
                 navigate({ view: "scenes", collectionId: null }, true);
               }
-            }, "Could not delete the collection")
+            }, "could not delete the collection")
           }
         />
       )}
@@ -590,27 +589,16 @@ const EmptyState = ({
   searching: boolean;
   collectionName?: string;
 }) => {
-  if (searching) {
-    return (
-      <div className="dash-empty">
-        <p>No scenes match your search.</p>
-      </div>
-    );
-  }
-  if (inTrash) {
-    return (
-      <div className="dash-empty">
-        <p>The trash is empty.</p>
-      </div>
-    );
-  }
+  const copy = searching
+    ? "no scenes match."
+    : inTrash
+    ? "the trash is empty."
+    : collectionName
+    ? `no scenes in ${collectionName} yet.`
+    : "no scenes yet. press n to start one, or drop an .excalidraw file here.";
   return (
     <div className="dash-empty">
-      <p>
-        {collectionName
-          ? `No scenes in ${collectionName} yet.`
-          : "No scenes yet. Create one above or drop an .excalidraw file here."}
-      </p>
+      <p>{copy}</p>
     </div>
   );
 };

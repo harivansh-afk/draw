@@ -26,20 +26,20 @@ const SHARE_OPTIONS: {
 }[] = [
   {
     value: "private",
-    label: "Private",
-    description: "Only you can open this scene.",
+    label: "private",
+    description: "only you can open this scene.",
     icon: LockedIcon,
   },
   {
     value: "view",
-    label: "Anyone with the link can view",
-    description: "Viewers see live changes but cannot edit.",
+    label: "anyone with the link can view",
+    description: "viewers see live changes but cannot edit.",
     icon: worldIcon,
   },
   {
     value: "edit",
-    label: "Anyone with the link can edit",
-    description: "Anyone with the link collaborates in real time.",
+    label: "anyone with the link can edit",
+    description: "anyone with the link collaborates in real time.",
     icon: usersIcon,
   },
 ];
@@ -93,13 +93,13 @@ export const ShareDialog = ({
   };
 
   return (
-    <Modal title="Share" onClose={onClose}>
+    <Modal title="share" onClose={onClose}>
       <div className="dash-share">
         <div className="dash-share__scene">{scene.name}</div>
         <div className="dash-share__link">
           <TextInput
             ref={inputRef}
-            label="Link"
+            label="link"
             readOnly
             value={link}
             onFocus={(event) => event.currentTarget.select()}
@@ -109,9 +109,8 @@ export const ShareDialog = ({
             size="large"
             icon={copied ? checkIcon : copyIcon}
             onClick={copy}
-            className={clsx({ "dash-button--success": copied })}
           >
-            {copied ? "Copied" : "Copy link"}
+            {copied ? "copied" : "copy link"}
           </Button>
         </div>
         <div
@@ -119,7 +118,7 @@ export const ShareDialog = ({
           role="radiogroup"
           aria-label="Access"
         >
-          <div className="dash-field__label">Access</div>
+          <div className="dash-field__label">access</div>
           {SHARE_OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -147,8 +146,8 @@ export const ShareDialog = ({
         </div>
         <p className="dash-share__note">
           {mode === "private"
-            ? "The link only works for you while the scene is private."
-            : "Anyone who has the link can open it without signing in. Switch back to Private to revoke."}
+            ? "the link only works for you while the scene is private."
+            : "anyone who has the link can open it without signing in. switch back to private to revoke."}
         </p>
       </div>
     </Modal>
@@ -177,11 +176,11 @@ export const MoveDialog = ({
     }
   };
   const options: { id: string | null; name: string }[] = [
-    { id: null, name: "No collection" },
+    { id: null, name: "no collection" },
     ...collections.map((c) => ({ id: c.id, name: c.name })),
   ];
   return (
-    <Modal title={`Move “${scene.name}”`} onClose={onClose}>
+    <Modal title={`move “${scene.name}”`} onClose={onClose}>
       <div className="dash-move">
         {options.map((option) => {
           const current = (scene.collectionId ?? null) === option.id;
@@ -197,13 +196,13 @@ export const MoveDialog = ({
             >
               <span className="dash-move__icon">{folderIcon}</span>
               <span className="dash-move__name">{option.name}</span>
-              {current && <span className="dash-move__current">Current</span>}
+              {current && <span className="dash-move__current">current</span>}
             </button>
           );
         })}
         {collections.length === 0 && (
           <p className="dash-share__note">
-            Create a collection from the sidebar to organise scenes.
+            create a collection from the sidebar to organise scenes.
           </p>
         )}
       </div>
@@ -234,7 +233,7 @@ export const ConfirmDialog = ({
       footer={
         <>
           <Button size="large" onClick={onClose} disabled={busy}>
-            Cancel
+            cancel
           </Button>
           <Button
             size="large"

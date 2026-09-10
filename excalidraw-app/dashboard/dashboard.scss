@@ -1,76 +1,56 @@
 @use "../../packages/excalidraw/css/theme";
-@use "../../packages/excalidraw/components/ExcalidrawLogo";
 
-// Design tokens shared by the themed root (.excalidraw-dashboard) and the
-// portalled layers (menus, modals, toasts) that render under <body>. The
-// values follow Excalidraw's theme.scss; dark values come from
+// The dashboard follows harivan.sh: three colours (page, ink, muted) with every
+// other surface mixed from the ink, one monospace face at one weight, dotted
+// underlines that turn solid on hover, no shadows. The dark values come from
 // <html class="dark">, which upstream index.html sets before first paint.
 
+@font-face {
+  font-family: "Berkeley Mono";
+  src: url("./fonts/BerkeleyMono-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+
 @mixin dash-tokens-light {
-  --ui-font: Assistant, system-ui, BlinkMacSystemFont, -apple-system, Segoe UI,
-    Roboto, Helvetica, Arial, sans-serif;
-  --dash-page-bg: #f5f5f9;
-  --dash-island: #ffffff;
-  --dash-border: #e9ecef;
-  --dash-border-strong: #d6d6d6;
-  --dash-text: #1b1b1f;
-  --dash-text-secondary: #5c5c5c;
-  --dash-text-muted: #868e96;
-  --dash-hover: #f1f0ff;
-  --dash-hover-neutral: #f1f3f5;
-  --dash-primary: #6965db;
-  --dash-primary-hover: #5b57d1;
-  --dash-primary-active: #4a47b1;
-  --dash-primary-light: #e3e2fe;
-  --dash-primary-light-strong: #d7d5ff;
-  --dash-on-primary: #ffffff;
-  --dash-danger: #e03131;
-  --dash-danger-soft: #fff0f0;
-  --dash-danger-border: #ffa8a8;
-  --dash-success: #cafccc;
-  --dash-success-text: #268029;
-  --dash-thumb-bg: #ffffff;
-  --dash-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
-  --dash-shadow-strong: 0px 0px 1px 0px rgba(0, 0, 0, 0.17),
-    0px 0px 3px 0px rgba(0, 0, 0, 0.08), 0px 7px 14px 0px rgb(0 0 0 / 14%);
-  --dash-scrim: rgba(18, 18, 18, 0.35);
+  --bg: #fdfdfc;
+  --fg: #1a1a1a;
+  --muted: #6b6b66;
+  --danger: #b3261e;
+  color-scheme: light;
 }
 
 @mixin dash-tokens-dark {
-  --dash-page-bg: #121212;
-  --dash-island: #232329;
-  --dash-border: #3a3a3f;
-  --dash-border-strong: #46464f;
-  --dash-text: #ced4da;
-  --dash-text-secondary: #adb5bd;
-  --dash-text-muted: #868e96;
-  --dash-hover: #2e2d39;
-  --dash-hover-neutral: #2c2c33;
-  --dash-primary: #a8a5ff;
-  --dash-primary-hover: #bbb8ff;
-  --dash-primary-active: #d0ccff;
-  --dash-primary-light: #4f4d6f;
-  --dash-primary-light-strong: #403e6a;
-  --dash-on-primary: #121212;
-  --dash-danger: #ffa8a5;
-  --dash-danger-soft: #3a1f1f;
-  --dash-danger-border: #8f2625;
-  --dash-success: #2b5a2e;
-  --dash-success-text: #cafccc;
-  --dash-thumb-bg: #1e1e24;
-  --dash-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25);
-  --dash-shadow-strong: 0px 0px 1px 0px rgba(0, 0, 0, 0.5),
-    0px 0px 3px 0px rgba(0, 0, 0, 0.3), 0px 7px 14px 0px rgb(0 0 0 / 45%);
-  --dash-scrim: rgba(0, 0, 0, 0.6);
+  --bg: #0d0d0b;
+  --fg: #f3f3ee;
+  --muted: #aaa8a1;
+  --danger: #f08c84;
   color-scheme: dark;
+}
+
+@mixin dash-derived {
+  --ui-font: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --line: color-mix(in srgb, var(--fg) 12%, transparent);
+  --line-strong: color-mix(in srgb, var(--fg) 24%, transparent);
+  --wash: color-mix(in srgb, var(--fg) 5%, transparent);
+  --wash-strong: color-mix(in srgb, var(--fg) 9%, transparent);
+  --raised: color-mix(in srgb, var(--fg) 3%, var(--bg));
+  --scrim: color-mix(in srgb, var(--bg) 82%, transparent);
+  --danger-wash: color-mix(in srgb, var(--danger) 10%, transparent);
+  --radius: 0.25rem;
+  --radius-large: 0.375rem;
+  --ease: 120ms ease-out;
 }
 
 @mixin dash-base {
   font-family: var(--ui-font);
-  color: var(--dash-text);
-  font-size: 0.875rem;
-  line-height: 1.4;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--fg);
+  font-synthesis-weight: none;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 
   *,
   *::before,
@@ -78,9 +58,19 @@
     box-sizing: border-box;
   }
 
+  b,
+  strong,
+  h1,
+  h2,
+  h3 {
+    font-weight: 400;
+  }
+
   button,
-  input {
+  input,
+  kbd {
     font-family: inherit;
+    font-size: inherit;
   }
 
   button {
@@ -97,14 +87,19 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--dash-primary);
+    outline: 1px solid var(--fg);
     outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--fg) 18%, transparent);
   }
 }
 
 .excalidraw.excalidraw-dashboard,
 .dash-portal {
   @include dash-tokens-light;
+  @include dash-derived;
   @include dash-base;
 }
 
@@ -122,97 +117,146 @@ html.dark .dash-portal {
   }
 }
 
+// harivan.sh's link: dotted rule that fills in solid from the left on hover.
+@mixin underline {
+  --ul-thickness: 1px;
+  --ul-dash: 2.5px;
+  --ul-inset: 1px;
+  padding-bottom: 3px;
+  background-image: linear-gradient(currentColor, currentColor),
+    repeating-linear-gradient(
+      to right,
+      currentColor 0 var(--ul-dash),
+      transparent var(--ul-dash) calc(2 * var(--ul-dash))
+    );
+  background-repeat: no-repeat;
+  background-position: 0 calc(100% - var(--ul-inset)),
+    100% calc(100% - var(--ul-inset));
+  background-size: 0 var(--ul-thickness), 100% var(--ul-thickness);
+  transition: background-size 250ms ease, color var(--ease);
+}
+
+@mixin underline-on {
+  background-size: 100% var(--ul-thickness), 0 var(--ul-thickness);
+}
+
+.dash-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  margin: 0 0 14px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dash-label__count {
+  color: var(--muted);
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.dash-kbd {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.dash-kbd__key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
 .dash-button {
-  --text: var(--dash-text);
-  --bg: var(--dash-island);
-  --border: var(--dash-border-strong);
+  --text: var(--fg);
+  --bg-button: transparent;
+  --border: var(--line-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 2.25rem;
-  padding: 0 14px;
-  border-radius: 0.5rem;
+  height: 1.875rem;
+  padding: 0 10px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--bg-button);
   color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 600;
   white-space: nowrap;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out,
-    color 120ms ease-out;
+  transition: background-color var(--ease), border-color var(--ease),
+    color var(--ease), opacity var(--ease);
 
   &:hover:not(:disabled) {
-    --bg: var(--dash-hover-neutral);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0.5px);
+    --bg-button: var(--wash);
   }
 
   &:disabled {
-    opacity: 0.55;
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
   &--large {
-    height: 2.75rem;
-    padding: 0 18px;
-    font-size: 0.9375rem;
+    height: 2.25rem;
+    padding: 0 14px;
   }
 
   &--icon-only {
-    padding: 0 10px;
+    padding: 0 8px;
   }
 
   &--primary {
-    --text: var(--dash-on-primary);
-    --bg: var(--dash-primary);
-    --border: var(--dash-primary);
+    --text: var(--bg);
+    --bg-button: var(--fg);
+    --border: var(--fg);
 
     &:hover:not(:disabled) {
-      --bg: var(--dash-primary-hover);
-      --border: var(--dash-primary-hover);
+      --bg-button: color-mix(in srgb, var(--fg) 86%, var(--bg));
+      --border: color-mix(in srgb, var(--fg) 86%, var(--bg));
     }
 
-    &:active:not(:disabled) {
-      --bg: var(--dash-primary-active);
+    .dash-kbd {
+      color: color-mix(in srgb, var(--bg) 70%, transparent);
+    }
+
+    .dash-kbd__key {
+      border-color: color-mix(in srgb, var(--bg) 35%, transparent);
     }
   }
 
   &--ghost {
-    --bg: transparent;
     --border: transparent;
+    color: var(--muted);
+
+    &:hover:not(:disabled) {
+      color: var(--fg);
+    }
   }
 
   &--danger {
-    --text: #fff;
-    --bg: var(--dash-danger);
-    --border: var(--dash-danger);
+    --text: var(--bg);
+    --bg-button: var(--danger);
+    --border: var(--danger);
 
     &:hover:not(:disabled) {
-      filter: brightness(0.95);
-      --bg: var(--dash-danger);
+      --bg-button: color-mix(in srgb, var(--danger) 88%, var(--bg));
     }
   }
 
   &--danger-outline {
-    --text: var(--dash-danger);
-    --bg: var(--dash-island);
-    --border: var(--dash-danger-border);
+    --text: var(--danger);
+    --border: color-mix(in srgb, var(--danger) 50%, transparent);
 
     &:hover:not(:disabled) {
-      --bg: var(--dash-danger-soft);
-    }
-  }
-
-  &--success {
-    --text: var(--dash-success-text);
-    --bg: var(--dash-success);
-    --border: var(--dash-success);
-
-    &:hover:not(:disabled) {
-      --bg: var(--dash-success);
+      --bg-button: var(--danger-wash);
     }
   }
 
@@ -221,47 +265,42 @@ html.dark .dash-portal {
   }
 }
 
-html.dark .dash-button--danger {
-  --text: #121212;
-}
-
 .dash-button__icon {
   display: inline-flex;
-  @include icon-size(1.125rem);
+  @include icon-size(1rem);
 }
 
 .dash-button__chevron {
   display: inline-flex;
-  margin-left: 4px;
-  margin-right: -4px;
-  opacity: 0.75;
-  @include icon-size(1rem);
+  margin-right: -2px;
+  opacity: 0.7;
+  @include icon-size(0.875rem);
 }
 
 .dash-icon-button {
   display: inline-grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: none;
-  border-radius: 0.375rem;
+  border-radius: var(--radius);
   background: transparent;
-  color: var(--dash-text-secondary);
-  transition: background-color 120ms ease-out, color 120ms ease-out;
-  @include icon-size(1.125rem);
+  color: var(--muted);
+  transition: background-color var(--ease), color var(--ease);
+  @include icon-size(1rem);
 
   &:hover {
-    background: var(--dash-hover-neutral);
-    color: var(--dash-text);
+    background: var(--wash);
+    color: var(--fg);
   }
 }
 
 .dash-spinner {
-  --spinner-color: var(--dash-primary);
-  width: 1rem;
-  height: 1rem;
+  --spinner-color: var(--muted);
+  width: 0.875rem;
+  height: 0.875rem;
   border-radius: 50%;
-  border: 2px solid var(--spinner-color);
+  border: 1px solid var(--spinner-color);
   border-right-color: transparent;
   animation: dash-spin 0.7s linear infinite;
   display: inline-block;
@@ -281,38 +320,38 @@ html.dark .dash-button--danger {
 }
 
 .dash-field__label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--dash-text);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .dash-field__control {
   position: relative;
   display: flex;
   align-items: center;
-  height: 2.75rem;
-  padding: 0 12px;
-  border-radius: 0.5rem;
-  border: 1px solid var(--dash-border-strong);
-  background: var(--dash-island);
-  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  height: 2.25rem;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  transition: border-color var(--ease);
 
   &:hover {
-    border-color: var(--dash-text-muted);
+    border-color: var(--muted);
   }
 
   &:focus-within {
-    border-color: var(--dash-primary);
-    box-shadow: 0 0 0 3px var(--dash-primary-light);
+    border-color: var(--fg);
   }
 
   &--with-icon {
-    padding-left: 36px;
+    padding-left: 32px;
   }
 
   &--readonly {
-    background: var(--dash-hover-neutral);
-    border-color: var(--dash-border);
+    background: var(--wash);
+    border-color: var(--line);
   }
 
   input {
@@ -322,23 +361,22 @@ html.dark .dash-button--danger {
     border: none;
     outline: none;
     background: transparent;
-    font-size: 0.875rem;
     text-overflow: ellipsis;
     user-select: text;
 
     &::placeholder {
-      color: var(--dash-text-muted);
+      color: var(--muted);
     }
   }
 }
 
 .dash-field__icon {
   position: absolute;
-  left: 12px;
+  left: 10px;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
-  color: var(--dash-text-muted);
+  color: var(--muted);
   pointer-events: none;
   @include icon-size(1rem);
 }
@@ -349,17 +387,25 @@ html.dark .dash-button--danger {
   object-fit: cover;
   display: inline-grid;
   place-items: center;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, #6965db, #9b98f0);
+  color: var(--bg);
+  background: var(--fg);
+  filter: grayscale(1);
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+
+.dash-wordmark {
+  font-size: 1.25rem;
   letter-spacing: 0.02em;
+  color: var(--fg);
 }
 
 // ------------------------------------------------------------------ layout
 
 .excalidraw.excalidraw-dashboard {
-  --dash-sidebar-width: 264px;
-  --dash-gutter: 44px;
+  --dash-sidebar-width: 220px;
+  --dash-rail-width: 232px;
+  --dash-gutter: 40px;
 
   position: fixed;
   inset: 0;
@@ -367,7 +413,7 @@ html.dark .dash-button--danger {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--dash-page-bg);
+  background: var(--bg);
   user-select: none;
 
   .dash-loading {
@@ -392,8 +438,19 @@ html.dark .dash-button--danger {
     min-width: 0;
     height: 100%;
     overflow-y: auto;
-    padding: 36px var(--dash-gutter) 48px;
+    padding: 32px var(--dash-gutter) 48px;
     scrollbar-gutter: stable;
+  }
+
+  .dash-main__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--dash-rail-width);
+    gap: 48px;
+    align-items: start;
+  }
+
+  .dash-content {
+    min-width: 0;
   }
 
   // ---------------------------------------------------------------- sidebar
@@ -402,9 +459,9 @@ html.dark .dash-button--danger {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--dash-island);
-    border-right: 1px solid var(--dash-border);
-    padding: 14px 8px 12px;
+    background: var(--bg);
+    border-right: 1px solid var(--line);
+    padding: 20px 16px 16px;
     overflow: hidden;
   }
 
@@ -414,22 +471,20 @@ html.dark .dash-button--danger {
     align-items: center;
     gap: 10px;
     width: 100%;
-    padding: 6px 8px;
+    padding: 4px 6px;
     border: none;
     background: transparent;
-    border-radius: 0.5rem;
+    border-radius: var(--radius);
     text-align: left;
 
     &:hover {
-      background: var(--dash-hover-neutral);
+      background: var(--wash);
     }
   }
 
   .dash-workspace__name {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: 1rem;
-    font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -437,26 +492,28 @@ html.dark .dash-button--danger {
 
   .dash-workspace__chevron {
     display: inline-flex;
-    color: var(--dash-text-secondary);
-    @include icon-size(1rem);
+    color: var(--muted);
+    @include icon-size(0.875rem);
   }
 
   .dash-search {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 2.375rem;
-    margin: 14px 0 12px;
-    padding: 0 12px;
-    border-radius: 0.5rem;
-    background: var(--dash-hover-neutral);
-    border: 1px solid transparent;
+    height: 1.875rem;
+    margin: 18px 0 14px;
+    padding: 0 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line-strong);
     cursor: text;
-    transition: border-color 120ms ease-out, background-color 120ms ease-out;
+    transition: border-color var(--ease);
+
+    &:hover {
+      border-color: var(--muted);
+    }
 
     &:focus-within {
-      border-color: var(--dash-primary);
-      background: var(--dash-island);
+      border-color: var(--fg);
     }
 
     input {
@@ -465,11 +522,10 @@ html.dark .dash-button--danger {
       border: none;
       outline: none;
       background: transparent;
-      font-size: 0.875rem;
       user-select: text;
 
       &::placeholder {
-        color: var(--dash-text-secondary);
+        color: var(--muted);
       }
 
       &::-webkit-search-cancel-button {
@@ -480,8 +536,8 @@ html.dark .dash-button--danger {
 
   .dash-search__icon {
     display: inline-flex;
-    color: var(--dash-text-secondary);
-    @include icon-size(1rem);
+    color: var(--muted);
+    @include icon-size(0.875rem);
   }
 
   .dash-sidebar__nav {
@@ -493,36 +549,32 @@ html.dark .dash-button--danger {
   .dash-nav-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    height: 2.375rem;
-    padding: 0 12px;
-    border-radius: 0.5rem;
-    color: var(--dash-text);
-    transition: background-color 120ms ease-out;
+    gap: 10px;
+    height: 1.75rem;
+    padding: 0 6px;
+    color: var(--muted);
+    transition: color var(--ease);
 
-    &:hover {
-      background: var(--dash-hover-neutral);
+    .dash-nav-row__label {
+      @include underline;
     }
 
+    &:hover,
     &--active {
-      background: var(--dash-hover);
-      color: var(--dash-primary);
-      font-weight: 600;
+      color: var(--fg);
 
-      .dash-nav-row__icon {
-        color: inherit;
+      .dash-nav-row__label {
+        @include underline-on;
       }
     }
   }
 
   .dash-nav-row__icon {
     display: inline-flex;
-    color: var(--dash-text-secondary);
-    @include icon-size(1.125rem);
+    @include icon-size(0.875rem);
   }
 
   .dash-nav-row__label {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -534,34 +586,35 @@ html.dark .dash-button--danger {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    margin-top: 18px;
+    margin-top: 22px;
   }
 
   .dash-sidebar__heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 4px 4px 12px;
-    font-size: 1.0625rem;
-    font-weight: 700;
-    color: var(--dash-primary);
+    padding: 0 0 0 6px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
 
   .dash-sidebar__add {
-    color: inherit;
     display: inline-grid;
     place-items: center;
-    width: 1.625rem;
-    height: 1.625rem;
+    width: 1.5rem;
+    height: 1.5rem;
     border: none;
-    border-radius: 0.375rem;
-    background: var(--dash-primary);
-    color: var(--dash-on-primary);
-    transition: background-color 120ms ease-out;
-    @include icon-size(1rem);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--muted);
+    transition: background-color var(--ease), color var(--ease);
+    @include icon-size(0.875rem);
 
     &:hover {
-      background: var(--dash-primary-hover);
+      background: var(--wash);
+      color: var(--fg);
     }
   }
 
@@ -572,53 +625,45 @@ html.dark .dash-button--danger {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding-top: 8px;
+    padding-top: 6px;
   }
 
   .dash-sidebar__empty {
-    padding: 6px 12px;
-    color: var(--dash-text-muted);
-    font-size: 0.8125rem;
+    padding: 2px 6px;
+    color: var(--muted);
+    opacity: 0.7;
   }
 
   .dash-collection-row {
     position: relative;
     display: flex;
     align-items: center;
-    height: 2.5rem;
-    border-radius: 0.5rem;
-    transition: background-color 120ms ease-out;
+    height: 1.75rem;
+    color: var(--muted);
+    transition: color var(--ease);
 
-    &:hover {
-      background: var(--dash-hover-neutral);
+    .dash-collection-row__label {
+      @include underline;
     }
 
-    &--active {
-      background: var(--dash-primary);
-      color: var(--dash-on-primary);
-      font-weight: 600;
+    &:hover,
+    &--active,
+    &--menu-open {
+      color: var(--fg);
 
-      &:hover {
-        background: var(--dash-primary);
-      }
-
-      .dash-collection-row__icon,
-      .dash-collection-row__more {
-        color: inherit;
-      }
-
-      .dash-collection-row__more:hover {
-        background: rgba(255, 255, 255, 0.18);
+      .dash-collection-row__label {
+        @include underline-on;
       }
     }
 
     &--input {
-      height: 2.5rem;
-      padding: 0 12px;
-      border: 1px solid var(--dash-primary);
-      background: var(--dash-island);
+      height: 1.75rem;
+      padding: 0 6px;
+      border: none;
+      border-bottom: 1px solid var(--fg);
+      background: transparent;
       outline: none;
-      font-size: 0.875rem;
+      color: var(--fg);
       cursor: text;
       user-select: text;
     }
@@ -629,19 +674,17 @@ html.dark .dash-button--danger {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     height: 100%;
-    padding: 0 12px;
+    padding: 0 6px;
   }
 
   .dash-collection-row__icon {
     display: inline-flex;
-    color: var(--dash-text-secondary);
-    @include icon-size(1rem);
+    @include icon-size(0.875rem);
   }
 
   .dash-collection-row__label {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -650,12 +693,12 @@ html.dark .dash-button--danger {
 
   .dash-collection-row__more {
     position: absolute;
-    right: 6px;
+    right: 0;
     top: 50%;
     transform: translateY(-50%);
     opacity: 0;
-    width: 1.625rem;
-    height: 1.625rem;
+    width: 1.5rem;
+    height: 1.5rem;
   }
 
   .dash-collection-row:hover .dash-collection-row__more,
@@ -668,8 +711,8 @@ html.dark .dash-button--danger {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 12px 4px 0;
-    border-top: 1px solid var(--dash-border);
+    padding: 12px 0 0;
+    border-top: 1px solid var(--line);
   }
 
   .dash-sidebar__user {
@@ -677,23 +720,15 @@ html.dark .dash-button--danger {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 4px 8px;
+    gap: 8px;
+    padding: 0 6px;
+    color: var(--muted);
   }
 
   .dash-sidebar__user-name {
-    font-weight: 700;
-    font-size: 0.9375rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .dash-sidebar__theme {
-    border: 1px solid var(--dash-border);
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 0.5rem;
   }
 
   // ----------------------------------------------------------------- header
@@ -703,6 +738,7 @@ html.dark .dash-button--danger {
     align-items: center;
     gap: 12px;
     margin-bottom: 28px;
+    min-height: 1.875rem;
   }
 
   .dash-header__menu {
@@ -714,127 +750,60 @@ html.dark .dash-button--danger {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-  }
-
-  .dash-header__title-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-  }
-
-  .dash-header__icon {
-    display: inline-flex;
-    color: var(--dash-text);
-    @include icon-size(1.5rem);
+    gap: 2px;
   }
 
   .dash-header__title {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-size: 0.9375rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .dash-header__subtitle {
-    color: var(--dash-text-secondary);
-    font-size: 0.875rem;
+    color: var(--muted);
   }
 
   .dash-header__actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex: 0 0 auto;
   }
 
-  // ------------------------------------------------------------------ tiles
-
-  .dash-tiles {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 268px));
-    gap: 26px;
-    margin-bottom: 32px;
-  }
-
-  .dash-tile {
-    color: inherit;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    height: 66px;
-    padding: 0 20px 0 12px;
-    border: 1px solid var(--dash-border);
-    border-radius: 0.75rem;
-    background: var(--dash-island);
-    text-align: left;
-    font-size: 1rem;
-    color: var(--dash-text);
-    transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
-
-    &:hover:not(:disabled) {
-      border-color: var(--dash-primary-light-strong);
-      box-shadow: var(--dash-shadow);
-    }
-
-    &:disabled {
-      cursor: progress;
-      opacity: 0.7;
-    }
-  }
-
-  .dash-tile__icon {
-    display: inline-grid;
-    place-items: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--dash-primary-light);
-    color: var(--dash-primary);
-    @include icon-size(1.375rem);
-  }
-
-  .dash-tile__label {
-    flex: 1 1 auto;
-  }
-
-  .dash-tile__plus {
-    display: inline-flex;
-    color: var(--dash-text-secondary);
-    @include icon-size(1.125rem);
-  }
-
-  .dash-section-title {
-    margin: 0 0 20px;
-    font-size: 1.125rem;
-    font-weight: 700;
-    color: var(--dash-primary);
+  .dash-header__sort-prefix {
+    opacity: 0.6;
   }
 
   // ------------------------------------------------------------------- grid
 
   .dash-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
-    gap: 26px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
   }
 
   .dash-card {
     position: relative;
-    background: var(--dash-island);
-    border: 1px solid var(--dash-border);
-    border-radius: 0.75rem;
-    transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-large);
+    background: var(--raised);
+    transition: border-color var(--ease);
 
     &:hover,
     &:focus-within,
     &--menu-open {
-      border-color: var(--dash-primary);
-      box-shadow: 0 0 0 1px var(--dash-primary);
+      border-color: var(--line-strong);
+
+      .dash-card__more {
+        opacity: 1;
+      }
+    }
+
+    &--cursor {
+      outline: 1px solid var(--fg);
+      outline-offset: 2px;
 
       .dash-card__more {
         opacity: 1;
@@ -848,15 +817,15 @@ html.dark .dash-button--danger {
 
   .dash-card__link {
     display: block;
-    padding: 0 0 12px;
   }
 
   .dash-card__thumb {
     position: relative;
-    aspect-ratio: 4 / 3;
-    border-radius: 0.75rem 0.75rem 0 0;
+    aspect-ratio: 16 / 10;
+    border-radius: var(--radius-large) var(--radius-large) 0 0;
+    border-bottom: 1px solid var(--line);
     overflow: hidden;
-    background: var(--dash-thumb-bg);
+    background: #fff;
 
     img {
       width: 100%;
@@ -864,7 +833,7 @@ html.dark .dash-button--danger {
       object-fit: contain;
       object-position: center;
       display: block;
-      padding: 14px 14px 26px;
+      padding: 12px;
     }
   }
 
@@ -873,8 +842,19 @@ html.dark .dash-button--danger {
     height: 100%;
     display: grid;
     place-items: center;
-    color: var(--dash-primary-light);
-    @include icon-size(3rem);
+    color: var(--line-strong);
+    background-image: radial-gradient(
+      var(--line-strong) 0.75px,
+      transparent 0.75px
+    );
+    background-size: 14px 14px;
+    background-position: center;
+    @include icon-size(1.5rem);
+  }
+
+  // invert(93%) of the PNG's white canvas, so the image has no visible frame
+  &.theme--dark .dash-card__thumb {
+    background: #121212;
   }
 
   // Same filter the editor applies to the canvas in dark mode, so a
@@ -883,27 +863,19 @@ html.dark .dash-button--danger {
     filter: invert(93%) hue-rotate(180deg);
   }
 
-  .dash-card__time {
-    position: absolute;
-    right: 14px;
-    bottom: 8px;
-    font-size: 0.6875rem;
-    color: var(--dash-text-muted);
-    pointer-events: none;
+  &.theme--dark .dash-card__placeholder {
+    background-color: var(--raised);
   }
 
   .dash-card__meta {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 12px 10px 0;
+    gap: 2px;
+    padding: 10px 12px 10px;
   }
 
   .dash-card__name {
     margin: 0;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    line-height: 1.3;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -914,57 +886,49 @@ html.dark .dash-button--danger {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 1.125rem;
+    min-height: 1rem;
+    color: var(--muted);
+    font-size: 0.75rem;
   }
 
-  .dash-card__owner {
-    font-size: 0.75rem;
-    color: var(--dash-text-secondary);
+  .dash-card__time {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-
-    &--icon {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      @include icon-size(0.75rem);
-    }
   }
 
   .dash-card__shared {
     display: inline-flex;
-    color: var(--dash-text-secondary);
-    @include icon-size(1rem);
+    color: var(--muted);
+    @include icon-size(0.875rem);
   }
 
   .dash-card__rename {
     width: 100%;
-    height: 1.625rem;
-    margin: -3px 0 0 -5px;
-    padding: 0 4px;
-    border: 1px solid var(--dash-primary);
-    border-radius: 0.375rem;
-    background: var(--dash-island);
-    font-size: 0.9375rem;
-    font-weight: 600;
+    height: 1.375rem;
+    margin: -1px 0 0 -1px;
+    padding: 0;
+    border: none;
+    border-bottom: 1px solid var(--fg);
+    background: transparent;
+    color: var(--fg);
     outline: none;
     user-select: text;
   }
 
   .dash-card__more {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 1.75rem;
-    height: 1.75rem;
-    background: var(--dash-island);
-    box-shadow: var(--dash-shadow);
+    top: 6px;
+    right: 6px;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--bg);
+    border: 1px solid var(--line);
     opacity: 0;
-    transition: opacity 120ms ease-out;
+    transition: opacity var(--ease);
 
     &:hover {
-      background: var(--dash-hover-neutral);
+      background: var(--wash);
     }
   }
 
@@ -972,23 +936,19 @@ html.dark .dash-button--danger {
     pointer-events: none;
 
     .dash-card__thumb {
-      background: var(--dash-hover-neutral);
-    }
-
-    .dash-card__meta {
-      padding-bottom: 12px;
+      background: var(--wash);
+      border-bottom-color: transparent;
     }
   }
 
   .dash-skeleton {
-    height: 0.75rem;
-    border-radius: 4px;
-    background: var(--dash-hover-neutral);
+    height: 0.625rem;
+    border-radius: 2px;
+    background: var(--wash-strong);
     animation: dash-pulse 1.4s ease-in-out infinite;
 
     &--title {
       width: 60%;
-      height: 0.875rem;
     }
 
     &--sub {
@@ -998,24 +958,105 @@ html.dark .dash-button--danger {
 
   @keyframes dash-pulse {
     50% {
-      opacity: 0.55;
+      opacity: 0.5;
     }
+  }
+
+  // ------------------------------------------------------------------- rail
+
+  .dash-rail {
+    position: sticky;
+    top: 0;
+    min-width: 0;
+    padding-top: 4px;
+  }
+
+  .dash-rail__empty {
+    margin: 0;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  .dash-rail__day {
+    margin: 0 0 18px;
+  }
+
+  .dash-rail__day-label {
+    margin: 0 0 6px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .dash-rail__list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 14px;
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dash-rail__entry {
+    position: relative;
+    min-width: 0;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: calc(-14px - 3px);
+      top: 0.55em;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 1px solid var(--line-strong);
+    }
+  }
+
+  .dash-rail__day:first-of-type .dash-rail__entry:first-child::before {
+    background: var(--fg);
+    border-color: var(--fg);
+  }
+
+  .dash-rail__line {
+    overflow-wrap: anywhere;
+  }
+
+  .dash-rail__verb,
+  .dash-rail__detail {
+    color: var(--muted);
+  }
+
+  .dash-rail__scene {
+    color: var(--fg);
+    @include underline;
+
+    &:hover {
+      @include underline-on;
+    }
+  }
+
+  .dash-rail__scene--gone {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--line-strong);
+  }
+
+  .dash-rail__meta {
+    font-size: 0.6875rem;
+    color: var(--muted);
+    opacity: 0.8;
   }
 
   // ------------------------------------------------------------ empty / notice
 
   .dash-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    padding: 72px 24px;
-    text-align: center;
-    color: var(--dash-text-secondary);
+    padding: 48px 0;
+    color: var(--muted);
 
     p {
       margin: 0;
-      font-size: 1rem;
     }
   }
 
@@ -1023,24 +1064,18 @@ html.dark .dash-button--danger {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 20px;
-    padding: 10px 14px;
-    border-radius: 0.5rem;
-    background: var(--dash-island);
-    border: 1px solid var(--dash-border);
-    color: var(--dash-text-secondary);
-    font-size: 0.8125rem;
+    margin: -12px 0 20px;
+    color: var(--muted);
 
     &--busy {
-      color: var(--dash-text);
+      color: var(--fg);
     }
   }
 
   .dash-main--dragging {
     .dash-grid,
-    .dash-empty,
-    .dash-tiles {
-      opacity: 0.4;
+    .dash-empty {
+      opacity: 0.35;
     }
   }
 
@@ -1055,21 +1090,10 @@ html.dark .dash-button--danger {
   }
 
   .dash-dropzone__card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 20px;
-    border-radius: 0.75rem;
-    background: var(--dash-island);
-    border: 2px dashed var(--dash-primary);
-    box-shadow: var(--dash-shadow-strong);
-    font-weight: 600;
-    color: var(--dash-primary);
-  }
-
-  .dash-dropzone__icon {
-    display: inline-flex;
-    @include icon-size(1.25rem);
+    padding: 12px 18px;
+    border-radius: var(--radius-large);
+    background: var(--bg);
+    border: 1px dashed var(--fg);
   }
 
   // ------------------------------------------------------------------- login
@@ -1079,40 +1103,32 @@ html.dark .dash-button--danger {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: var(--dash-page-bg);
+    background: var(--bg);
   }
 
   .dash-login__card {
-    width: min(100%, 400px);
+    width: min(100%, 320px);
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 18px;
-    padding: 40px 36px 32px;
-    background: var(--dash-island);
-    border: 1px solid var(--dash-border);
-    border-radius: 0.75rem;
-    box-shadow: var(--dash-shadow);
+    gap: 16px;
 
-    .ExcalidrawLogo {
-      justify-content: center;
+    .dash-wordmark {
+      align-self: center;
     }
   }
 
   .dash-login__lede {
-    margin: -4px 0 6px;
+    margin: -6px 0 10px;
     text-align: center;
-    color: var(--dash-text-secondary);
-    font-size: 0.9375rem;
+    color: var(--muted);
   }
 
   .dash-login__error {
-    padding: 10px 12px;
-    border-radius: 0.5rem;
-    background: var(--dash-danger-soft);
-    color: var(--dash-danger);
-    border: 1px solid var(--dash-danger-border);
-    font-size: 0.875rem;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    color: var(--danger);
+    border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
   }
 
   .dash-login__provider {
@@ -1128,11 +1144,11 @@ html.dark .dash-button--danger {
   .dash-login__divider {
     position: relative;
     text-align: center;
-    color: var(--dash-text-muted);
+    color: var(--muted);
     font-size: 0.6875rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    margin: 6px 0 2px;
+    margin: 8px 0 2px;
 
     &::before {
       content: "";
@@ -1140,13 +1156,13 @@ html.dark .dash-button--danger {
       left: 0;
       right: 0;
       top: 50%;
-      border-top: 1px solid var(--dash-border);
+      border-top: 1px solid var(--line);
     }
 
     span {
       position: relative;
       padding: 0 10px;
-      background: var(--dash-island);
+      background: var(--bg);
     }
   }
 }
@@ -1158,12 +1174,11 @@ html.dark .dash-button--danger {
   z-index: 1001;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  border-radius: 0.75rem;
-  background: var(--dash-island);
-  border: 1px solid var(--dash-border);
-  box-shadow: var(--dash-shadow-strong);
+  gap: 1px;
+  padding: 4px;
+  border-radius: var(--radius-large);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
   animation: dash-menu-in 110ms ease-out;
   user-select: none;
 
@@ -1175,21 +1190,20 @@ html.dark .dash-button--danger {
 @keyframes dash-menu-in {
   from {
     opacity: 0;
-    transform: translateY(-3px);
+    transform: translateY(-2px);
   }
 }
 
 .dash-menu__item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 2.375rem;
-  padding: 0 12px;
+  gap: 10px;
+  height: 1.75rem;
+  padding: 0 8px;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: var(--radius);
   background: transparent;
-  color: var(--dash-text);
-  font-size: 0.875rem;
+  color: var(--fg);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -1197,28 +1211,28 @@ html.dark .dash-button--danger {
 
   &:hover,
   &:focus-visible {
-    background: var(--dash-hover-neutral);
+    background: var(--wash);
     outline: none;
   }
 
   &[aria-disabled="true"] {
-    opacity: 0.5;
+    opacity: 0.45;
     cursor: default;
   }
 
   &--danger {
-    color: var(--dash-danger);
+    color: var(--danger);
   }
 
-  &--selected {
-    font-weight: 600;
+  .dash-kbd {
+    margin-left: 12px;
   }
 }
 
 .dash-menu__icon {
   display: inline-flex;
-  color: var(--dash-text-secondary);
-  @include icon-size(1.0625rem);
+  color: var(--muted);
+  @include icon-size(0.875rem);
 }
 
 .dash-menu__item--danger .dash-menu__icon {
@@ -1230,23 +1244,21 @@ html.dark .dash-button--danger {
 }
 
 .dash-menu__check {
-  color: var(--dash-primary);
-  font-size: 0.75rem;
+  color: var(--fg);
 }
 
 .dash-menu__separator {
   height: 1px;
-  margin: 4px 4px;
-  background: var(--dash-border);
+  margin: 3px 4px;
+  background: var(--line);
 }
 
 .dash-menu__heading {
-  padding: 6px 12px 4px;
+  padding: 4px 8px 2px;
   font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--dash-text-muted);
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 260px;
@@ -1261,7 +1273,7 @@ html.dark .dash-button--danger {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--dash-scrim);
+  background: var(--scrim);
   animation: dash-fade-in 120ms ease-out;
 }
 
@@ -1273,19 +1285,13 @@ html.dark .dash-button--danger {
 
 .dash-modal {
   width: 100%;
-  max-width: 440px;
+  max-width: 420px;
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-  background: var(--dash-island);
-  border: 1px solid var(--dash-border);
-  border-radius: 0.75rem;
-  box-shadow: 0px 100px 80px rgba(0, 0, 0, 0.07),
-    0px 41.7776px 33.4221px rgba(0, 0, 0, 0.0503198),
-    0px 22.3363px 17.869px rgba(0, 0, 0, 0.0417275),
-    0px 12.5216px 10.0172px rgba(0, 0, 0, 0.035),
-    0px 6.6501px 5.32008px rgba(0, 0, 0, 0.0282725),
-    0px 2.76726px 2.21381px rgba(0, 0, 0, 0.0196802);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-large);
   animation: dash-modal-in 140ms ease-out;
   overflow: hidden;
 
@@ -1297,7 +1303,7 @@ html.dark .dash-button--danger {
 @keyframes dash-modal-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: translateY(4px);
   }
 }
 
@@ -1305,48 +1311,45 @@ html.dark .dash-button--danger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 16px 12px 24px;
-  border-bottom: 1px solid var(--dash-border);
+  padding: 14px 12px 12px 20px;
+  border-bottom: 1px solid var(--line);
 }
 
 .dash-modal__title {
   margin: 0;
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .dash-modal__body {
-  padding: 20px 24px;
+  padding: 18px 20px;
   overflow-y: auto;
 }
 
 .dash-modal__footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 24px 20px;
+  gap: 8px;
+  padding: 0 20px 18px;
 }
 
 .dash-share {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .dash-share__scene {
-  font-weight: 600;
-  font-size: 0.9375rem;
   margin-top: -6px;
-  color: var(--dash-text-secondary);
+  color: var(--muted);
 }
 
 .dash-share__link {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 8px;
 
   .dash-field {
     flex: 1 1 auto;
@@ -1365,24 +1368,24 @@ html.dark .dash-button--danger {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 0.5rem;
-  border: 1px solid var(--dash-border);
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+  transition: border-color var(--ease), background-color var(--ease);
 
   &:hover:not(:disabled) {
-    background: var(--dash-hover-neutral);
+    background: var(--wash);
   }
 
   &--active {
-    border-color: var(--dash-primary);
-    background: var(--dash-primary-light);
+    border-color: var(--fg);
 
-    &:hover:not(:disabled) {
-      background: var(--dash-primary-light);
+    .dash-share__option-icon,
+    .dash-share__option-check {
+      color: var(--fg);
     }
   }
 
@@ -1393,77 +1396,72 @@ html.dark .dash-button--danger {
 
 .dash-share__option-icon {
   display: inline-flex;
-  color: var(--dash-primary);
-  @include icon-size(1.25rem);
+  color: var(--muted);
+  @include icon-size(1rem);
 }
 
 .dash-share__option-text {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-}
-
-.dash-share__option-label {
-  font-weight: 600;
 }
 
 .dash-share__option-desc {
   font-size: 0.75rem;
-  color: var(--dash-text-secondary);
+  color: var(--muted);
 }
 
 .dash-share__option-check {
   width: 1rem;
   display: inline-flex;
-  color: var(--dash-primary);
-  @include icon-size(1rem);
+  color: var(--muted);
+  @include icon-size(0.875rem);
 }
 
 .dash-share__note {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--dash-text-secondary);
+  color: var(--muted);
 }
 
 .dash-move {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .dash-move__option {
   color: inherit;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  height: 2.5rem;
-  padding: 0 12px;
-  border-radius: 0.5rem;
+  height: 1.875rem;
+  padding: 0 8px;
+  border-radius: var(--radius);
   border: 1px solid transparent;
   background: transparent;
   text-align: left;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: var(--dash-hover-neutral);
+    background: var(--wash);
   }
 
   &--current {
-    border-color: var(--dash-border);
+    border-color: var(--line);
     cursor: default;
   }
 
   &:disabled:not(.dash-move__option--current) {
-    opacity: 0.5;
+    opacity: 0.45;
   }
 }
 
 .dash-move__icon {
   display: inline-flex;
-  color: var(--dash-text-secondary);
-  @include icon-size(1.125rem);
+  color: var(--muted);
+  @include icon-size(0.875rem);
 }
 
 .dash-move__name {
@@ -1474,13 +1472,15 @@ html.dark .dash-button--danger {
 }
 
 .dash-move__current {
-  font-size: 0.75rem;
-  color: var(--dash-text-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .dash-confirm__body {
   margin: 0;
-  line-height: 1.5;
+  color: var(--muted);
 }
 
 // ------------------------------------------------------------------ toasts
@@ -1494,38 +1494,44 @@ html.dark .dash-button--danger {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   pointer-events: none;
 }
 
 .dash-toast {
-  padding: 10px 16px;
-  border-radius: 0.5rem;
-  background: var(--dash-island);
-  color: var(--dash-text);
-  box-shadow: var(--dash-shadow-strong);
-  border: 1px solid var(--dash-border);
-  font-size: 0.875rem;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
   max-width: min(90vw, 480px);
   animation: dash-toast-in 160ms ease-out;
 
   &--error {
-    border-color: var(--dash-danger-border);
+    border-color: var(--danger);
   }
 }
 
 @keyframes dash-toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
 }
 
 // -------------------------------------------------------------- responsive
 
-@media (max-width: 1100px) {
+@media (max-width: 1180px) {
   .excalidraw.excalidraw-dashboard {
     --dash-gutter: 28px;
+
+    .dash-main__inner {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dash-rail {
+      display: none;
+    }
   }
 }
 
@@ -1555,7 +1561,6 @@ html.dark .dash-button--danger {
     .dash-layout--sidebar-open {
       .dash-sidebar {
         transform: none;
-        box-shadow: var(--dash-shadow-strong);
       }
 
       .dash-layout__scrim {
@@ -1563,7 +1568,7 @@ html.dark .dash-button--danger {
         position: fixed;
         inset: 0;
         z-index: 19;
-        background: var(--dash-scrim);
+        background: var(--scrim);
       }
     }
 
@@ -1573,10 +1578,6 @@ html.dark .dash-button--danger {
 
     .dash-header__menu {
       display: inline-grid;
-    }
-
-    .dash-header__title {
-      font-size: 1.25rem;
     }
 
     .dash-header__subtitle {
@@ -1591,31 +1592,16 @@ html.dark .dash-button--danger {
       margin: 0;
     }
 
-    .dash-tiles {
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    .dash-tile {
-      height: 56px;
-      padding: 0 12px 0 8px;
-      gap: 10px;
-      font-size: 0.9375rem;
-    }
-
-    .dash-tile__icon {
-      width: 36px;
-      height: 36px;
-      @include icon-size(1.125rem);
-    }
-
     .dash-grid {
-      gap: 16px;
+      gap: 14px;
     }
 
     .dash-card__more {
       opacity: 1;
+    }
+
+    .dash-kbd {
+      display: none;
     }
   }
 }
@@ -1623,11 +1609,7 @@ html.dark .dash-button--danger {
 @media (max-width: 479px) {
   .excalidraw.excalidraw-dashboard {
     .dash-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .dash-tiles {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
     }
 
     .dash-header__actions .dash-button--primary .dash-button__label {

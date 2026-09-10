@@ -55,6 +55,29 @@ export type RoomVersion = {
 
 export type AuthConfig = { devLogin: boolean; provider: string };
 
+export type ActivityKind =
+  | "created"
+  | "edited"
+  | "renamed"
+  | "moved"
+  | "shared"
+  | "duplicated"
+  | "trashed"
+  | "restored"
+  | "deleted";
+
+export type Activity = {
+  id: number;
+  kind: ActivityKind;
+  sceneId: string | null;
+  sceneName: string;
+  detail: string;
+  actorId: string | null;
+  actorName: string;
+  at: string;
+  sceneState: "live" | "trash" | "gone";
+};
+
 export type SceneListQuery = {
   collection?: string | "none" | "all";
   trash?: boolean;
@@ -231,6 +254,13 @@ export const api = {
       ),
     remove: (id: string) =>
       request("DELETE", `/collections/${id}`).then(() => undefined),
+  },
+
+  activity: {
+    list: (limit = 40) =>
+      request("GET", `/activity${query({ limit: String(limit) })}`).then(
+        (response) => json<{ activity: Activity[] }>(response),
+      ),
   },
 
   library: {

@@ -3,9 +3,9 @@ import type { SceneMeta } from "../data/api";
 export type SortKey = "updated" | "name" | "created";
 
 export const SORT_LABELS: Record<SortKey, string> = {
-  updated: "Last edited",
-  name: "Name",
-  created: "Created",
+  updated: "last edited",
+  name: "name",
+  created: "created",
 };
 
 export const sortScenes = (

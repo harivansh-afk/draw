@@ -1,33 +1,25 @@
 import React, { useRef } from "react";
 
-import {
-  chevronUpDownIcon,
-  filePlusIcon,
-  HamburgerMenuIcon,
-  importIcon,
-  PlusIcon,
-} from "./icons";
+import { chevronUpDownIcon, HamburgerMenuIcon } from "./icons";
 import { SORT_LABELS } from "./state";
 import { Button, IconButton, Menu, useMenu } from "./ui";
 
 import type { SortKey } from "./state";
 
 export const Header = ({
-  icon,
   title,
   subtitle,
   sort,
   onSortChange,
   onToggleSidebar,
-  action,
+  actions,
 }: {
-  icon: React.ReactNode;
   title: string;
   subtitle?: string;
   sort?: SortKey;
   onSortChange?: (sort: SortKey) => void;
   onToggleSidebar: () => void;
-  action?: React.ReactNode;
+  actions?: React.ReactNode;
 }) => {
   const sortMenu = useMenu();
   return (
@@ -40,16 +32,14 @@ export const Header = ({
         {HamburgerMenuIcon}
       </IconButton>
       <div className="dash-header__titles">
-        <div className="dash-header__title-row">
-          <span className="dash-header__icon">{icon}</span>
-          <h1 className="dash-header__title">{title}</h1>
-        </div>
+        <h1 className="dash-header__title">{title}</h1>
         {subtitle && <div className="dash-header__subtitle">{subtitle}</div>}
       </div>
       <div className="dash-header__actions">
         {sort && onSortChange && (
           <>
             <Button
+              variant="ghost"
               className="dash-header__sort"
               onClick={sortMenu.open}
               aria-haspopup="menu"
@@ -60,15 +50,16 @@ export const Header = ({
                 </span>
               }
             >
+              <span className="dash-header__sort-prefix">sort </span>
               {SORT_LABELS[sort]}
             </Button>
             {sortMenu.isOpen && (
               <Menu
                 anchor={sortMenu.anchor}
                 onClose={sortMenu.close}
-                minWidth={180}
+                minWidth={160}
                 items={[
-                  { kind: "heading", label: "Sort by" },
+                  { kind: "heading", label: "sort by" },
                   ...(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
                     label: SORT_LABELS[key],
                     selected: key === sort,
@@ -79,34 +70,26 @@ export const Header = ({
             )}
           </>
         )}
-        {action}
+        {actions}
       </div>
     </header>
   );
 };
 
-/** The two wide tiles Excalidraw+ shows above a scene list. */
-export const ActionTiles = ({
+/** "import" button backed by a hidden multi-file input. */
+export const ImportButton = ({
   onImport,
-  onCreate,
-  creating,
+  hint,
 }: {
   onImport: (files: FileList) => void;
-  onCreate: () => void;
-  creating: boolean;
+  hint?: string;
 }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   return (
-    <div className="dash-tiles">
-      <button
-        type="button"
-        className="dash-tile"
-        onClick={() => fileInput.current?.click()}
-      >
-        <span className="dash-tile__icon">{importIcon}</span>
-        <span className="dash-tile__label">Import scenes</span>
-        <span className="dash-tile__plus">{PlusIcon}</span>
-      </button>
+    <>
+      <Button hint={hint} onClick={() => fileInput.current?.click()}>
+        import
+      </Button>
       <input
         ref={fileInput}
         type="file"
@@ -120,16 +103,6 @@ export const ActionTiles = ({
           event.target.value = "";
         }}
       />
-      <button
-        type="button"
-        className="dash-tile"
-        onClick={onCreate}
-        disabled={creating}
-      >
-        <span className="dash-tile__icon">{filePlusIcon}</span>
-        <span className="dash-tile__label">Create scene</span>
-        <span className="dash-tile__plus">{PlusIcon}</span>
-      </button>
-    </div>
+    </>
   );
 };

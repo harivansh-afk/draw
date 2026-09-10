@@ -109,43 +109,61 @@ never fall back to the SPA.
 
 ## Dashboard
 
-Visual language is Excalidraw's own: Assistant font, the palette from
-`packages/excalidraw/css/theme.scss` (light: page `#ffffff`, island `#ffffff`,
-text `#1b1b1f`, primary `#6965db`, primary hover `#5b57d1`, borders
-`#e9ecef`; dark: page `#121212`, island `#232329`, text `#ced4da`, primary
-`#a8a5ff`, borders `#3a3a3f`), 8 px radii, subtle shadows, no gradients.
-Theme follows the editor's `excalidraw-theme` localStorage value
+Visual language is harivan.sh's, not Excalidraw's: one monospace face
+(Berkeley Mono, shipped in `excalidraw-app/dashboard/fonts/`, regular weight
+only, so nothing is bold), three colours per theme (light: page `#fdfdfc`, ink
+`#1a1a1a`, muted `#6b6b66`; dark: page `#0d0d0b`, ink `#f3f3ee`, muted
+`#aaa8a1`) with every border, wash and hover mixed from the ink via
+`color-mix`, a restrained red for destructive actions only, 4–6 px radii, no
+shadows and no gradients. Labels are lowercase; section labels are small
+uppercase letter-spaced muted text. Links use the site's dotted underline that
+fills solid on hover; the active nav row is ink with a solid underline.
+Keyboard hints render as `kbd` chips beside the action they trigger. Theme
+follows the editor's `excalidraw-theme` localStorage value
 (`light`/`dark`/`system`) and the `.dark` class on `<html>` that upstream
 `index.html` already sets.
 
-Layout (≥ 800 px): left sidebar 240 px, main area with a 24 px gutter.
+Layout (≥ 800 px): left sidebar 220 px, main column, and from 1180 px a right
+activity rail 232 px wide; 40 px gutter.
 
 Sidebar, top to bottom:
-- Excalidraw logo mark + wordmark (upstream `ExcalidrawLogo`).
-- Nav: **Scenes** (all live scenes), then **Collections** header with a `+`
+- Workspace row (avatar, "personal", menu with the email and sign out).
+- Search field with a `/` hint (filters by name, client-side, debounced 150 ms).
+- Nav: **dashboard**, **trash**; then **collections** label with a `+`
   button, one row per collection (inline rename on double-click, context menu:
-  Rename, Delete (scenes move to "Scenes", not trash)), then **Trash**.
+  rename, delete (scenes stay in the dashboard, not trash)).
 - Footer: user avatar + name, theme toggle (light/dark/system, writes
-  `excalidraw-theme`), sign out.
+  `excalidraw-theme`).
 
-Main area:
-- Top bar: search field (filters by name, client-side, debounced 150 ms), sort
-  menu (Last edited, Name, Created), primary button **New scene** (creates a
-  scene named "Untitled" in the current collection and opens `/s/<id>`).
-- Card grid, `repeat(auto-fill, minmax(260px, 1fr))`, gap 20 px. Card: 16:10
-  thumbnail area (`GET /api/scenes/:id/thumbnail`, falls back to a faint
-  placeholder glyph), then name (single line, ellipsis), then "Edited 3 min
-  ago" (relative, refreshed each minute). Whole card opens the scene. Hover or
-  focus reveals a `…` button; menu: Open, Open in new tab, Rename, Duplicate,
-  Move to…, Share…, Move to trash. Middle-click / Cmd-click opens a new tab
-  (it is a real `<a>`).
-- Trash view: same cards, menu is Restore, Delete permanently; a top notice
-  "Scenes in the trash are deleted after 30 days".
-- Empty states: one line of copy plus the primary action.
+Main column:
+- Header: view title (dashboard, trash, or the collection name), sort menu
+  (last edited, name, created), **import** (`i`) and the primary **new scene**
+  (`n`, creates a scene named "Untitled" in the current collection and opens
+  `/s/<id>`). In the trash the header holds **empty trash** instead.
+- Section label ("recent", "scenes" inside a collection, or `results for
+  “…”` while searching) with the visible count.
+- Card grid, `repeat(auto-fill, minmax(200px, 1fr))`, gap 20 px. Card: 16:10
+  thumbnail area (`GET /api/scenes/:id/thumbnail`; without one, a faint dot
+  grid), then name (single line, ellipsis), then the relative time (refreshed
+  each minute) and a link glyph when shared. Whole card opens the scene. Hover,
+  focus or the keyboard cursor reveals a `…` button; menu: rename, share,
+  duplicate, move, move to trash, each with its key hint. Middle-click /
+  Cmd-click opens a new tab (it is a real `<a>`).
+
+Activity rail (right, hidden under 1180 px): `GET /api/activity`, grouped by
+day ("today", "yesterday", weekday within the week, else "12 aug"), each entry
+one line of muted verb + ink scene link + muted detail, then the time
+(relative today, `HH:MM` otherwise) and `by <actor>` when the actor is not the
+signed-in user ("someone with the link" for anonymous editors). Scenes in the
+trash link to `/trash`; deleted scenes are struck through and not linked. The
+rail refreshes with the scene list.
+- Trash view: same cards, menu is restore, delete permanently; a top notice
+  "scenes in the trash are deleted after 30 days".
+- Empty states: one line of muted copy.
 - Drag and drop of `.excalidraw` files anywhere over the grid imports each as
   a scene into the current collection (parse with upstream `loadFromBlob`,
   create scene, encrypt elements with the returned room key, `PUT` the room,
-  upload files, then refresh). A hidden file input behind an **Import** button
+  upload files, then refresh). A hidden file input behind the **import** button
   in the top bar does the same.
 - Share… from the dashboard opens the same access selector + link + copy as
   the editor's share dialog.
@@ -153,9 +171,10 @@ Main area:
 - Under 800 px the sidebar collapses behind a menu button; the grid goes to one
   column at 480 px.
 
-Sign-in screen: centred island, logo, "Sign in with Google" button (calls
-`/api/auth/oidc/start?next=…`), and an error line for `?error=not_allowed`
-("This account is not allowed here") or `?error=oidc`. When `DRAW_DEV_LOGIN=1`
+Sign-in screen: centred column, the `draw` wordmark, one line of muted copy,
+"sign in with google" button (calls `/api/auth/oidc/start?next=…`), and an
+error line for `?error=not_allowed` ("this account is not allowed here") or
+`?error=oidc`. When `DRAW_DEV_LOGIN=1`
 the server also reports `devLogin: true` in `GET /api/auth/config` and the page
 shows an email field with "Sign in (dev)".
 
