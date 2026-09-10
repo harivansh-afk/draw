@@ -7,7 +7,8 @@ import (
 )
 
 // Activity is one line in an owner's timeline: what happened to which scene,
-// by whom. Rows outlive their scene so the feed can still say what was deleted.
+// by whom. Rows outlive their scene so the feed can still say what was deleted;
+// SceneName is the scene's current name while it exists, else its last one.
 type Activity struct {
 	ID        int64   `json:"id"`
 	Kind      string  `json:"kind"`
@@ -76,7 +77,7 @@ func (s *Store) LogActivity(db Execer, owner, actor, kind string, sceneID *strin
 }
 
 func (s *Store) ListActivity(owner string, limit int) ([]Activity, error) {
-	rows, err := s.DB.Query(`SELECT a.id,a.kind,a.scene_id,a.scene_name,a.detail,a.actor_id,COALESCE(u.name,''),a.at,
+	rows, err := s.DB.Query(`SELECT a.id,a.kind,a.scene_id,COALESCE(sc.name,a.scene_name),a.detail,a.actor_id,COALESCE(u.name,''),a.at,
 		CASE WHEN sc.id IS NULL THEN 'gone' WHEN sc.deleted_at IS NULL THEN 'live' ELSE 'trash' END
 		FROM activity a LEFT JOIN users u ON u.id=a.actor_id LEFT JOIN scenes sc ON sc.id=a.scene_id
 		WHERE a.owner_id=? ORDER BY a.at DESC, a.id DESC LIMIT ?`, owner, limit)

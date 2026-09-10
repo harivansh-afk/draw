@@ -62,8 +62,8 @@ func TestActivityTimeline(t *testing.T) {
 	if list[0].SceneState != "gone" || list[0].SceneName != "Plan (copy)" || list[3].Detail != "Plan" {
 		t.Fatalf("deleted copy: %+v %+v", list[0], list[3])
 	}
-	if list[4].Detail != "Ideas" || list[5].Detail != "view" || list[6].Detail != "Untitled" || list[6].SceneName != "Plan" {
-		t.Fatalf("details: %+v", list[4:7])
+	if list[4].Detail != "Ideas" || list[5].Detail != "view" || list[6].Detail != "Untitled" || list[6].SceneName != "Plan" || list[7].SceneName != "Plan" {
+		t.Fatalf("details: %+v", list[4:8])
 	}
 	me := readJSON[struct{ User store.User }](t, f.request("GET", "/api/auth/me", nil, owner, nil)).User
 	if list[1].SceneState != "live" || list[0].ActorID == nil || *list[0].ActorID != me.ID {

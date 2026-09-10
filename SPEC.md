@@ -109,56 +109,56 @@ never fall back to the SPA.
 
 ## Dashboard
 
-Visual language is harivan.sh's, not Excalidraw's: one monospace face
-(Berkeley Mono, shipped in `excalidraw-app/dashboard/fonts/`, regular weight
-only, so nothing is bold), three colours per theme (light: page `#fdfdfc`, ink
-`#1a1a1a`, muted `#6b6b66`; dark: page `#0d0d0b`, ink `#f3f3ee`, muted
-`#aaa8a1`) with every border, wash and hover mixed from the ink via
-`color-mix`, a restrained red for destructive actions only, 4–6 px radii, no
-shadows and no gradients. Labels are lowercase; section labels are small
-uppercase letter-spaced muted text. Links use the site's dotted underline that
-fills solid on hover; the active nav row is ink with a solid underline.
-Keyboard hints render as `kbd` chips beside the action they trigger. Theme
-follows the editor's `excalidraw-theme` localStorage value
-(`light`/`dark`/`system`) and the `.dark` class on `<html>` that upstream
-`index.html` already sets.
+Visual language is Excalidraw's own (Assistant font, 8–12 px radii, subtle
+shadows, islands with 1 px borders) with the purple replaced by a neutral
+greyscale: light page `#f6f6f6`, island `#ffffff`, text `#1b1b1f`, borders
+`#e8e8e8`, the ink `#1b1b1f` as the only accent (primary buttons, focus,
+the keyboard cursor); dark page `#121212`, island `#1e1e1e`, text `#e3e3e3`,
+borders `#303030`, ink `#e3e3e3`. Red is reserved for destructive actions.
+No gradients, no underlines, no key hints on buttons or menus (keys live in
+the palette and the `?` sheet). Theme follows the editor's `excalidraw-theme`
+localStorage value (`light`/`dark`/`system`) and the `.dark` class on `<html>`
+that upstream `index.html` already sets. The dashboard's scroll container and
+the page have `overscroll-behavior: none`, so nothing bounces past the ends.
 
-Layout (≥ 800 px): left sidebar 220 px, main column, and from 1180 px a right
-activity rail 232 px wide; 40 px gutter.
+Layout (≥ 800 px): left sidebar 264 px, main column, and from 1180 px a right
+activity rail 240 px wide; 44 px gutter.
 
 Sidebar, top to bottom:
-- Workspace row (avatar, "personal", menu with the email and sign out).
-- Search field with a `/` hint (filters by name, client-side, debounced 150 ms).
-- Nav: **dashboard**, **trash**; then **collections** label with a `+`
+- Workspace row (avatar, "Personal", menu with the email and Sign out).
+- Search field (filters by name, client-side, debounced 150 ms).
+- Nav: **Dashboard**, **Trash**; then **Collections** heading with a `+`
   button, one row per collection (inline rename on double-click, context menu:
-  rename, delete (scenes stay in the dashboard, not trash)).
+  Rename, Delete collection (scenes stay in the dashboard, not trash)). The
+  active row has the hover fill, never a colour.
 - Footer: user avatar + name, theme toggle (light/dark/system, writes
   `excalidraw-theme`).
 
 Main column:
-- Header: view title (dashboard, trash, or the collection name), sort menu
-  (last edited, name, created), **import** (`i`) and the primary **new scene**
-  (`n`, creates a scene named "Untitled" in the current collection and opens
-  `/s/<id>`). In the trash the header holds **empty trash** instead.
-- Section label ("recent", "scenes" inside a collection, or `results for
-  “…”` while searching) with the visible count.
-- Card grid, `repeat(auto-fill, minmax(200px, 1fr))`, gap 20 px. Card: 16:10
-  thumbnail area (`GET /api/scenes/:id/thumbnail`; without one, a faint dot
-  grid), then name (single line, ellipsis), then the relative time (refreshed
-  each minute) and a link glyph when shared. Whole card opens the scene. Hover,
-  focus or the keyboard cursor reveals a `…` button; menu: rename, share,
-  duplicate, move, move to trash, each with its key hint. Middle-click /
-  Cmd-click opens a new tab (it is a real `<a>`).
+- Header: view title (Dashboard, Trash, or the collection name), sort menu
+  (Last edited, Name, Created), **Import** and the primary **New scene**
+  (creates a scene named "Untitled" in the current collection and opens
+  `/s/<id>`). In the trash the header holds **Empty trash** instead.
+- Section title ("Recent" on the dashboard, `Results for “…”` while
+  searching, none inside a collection or the trash) with the visible count.
+- Card grid, `repeat(auto-fill, minmax(232px, 1fr))`, gap 26 px. Card: 4:3
+  thumbnail area (`GET /api/scenes/:id/thumbnail`; without one, a blank
+  surface), then name (single line, ellipsis), then the relative time
+  (refreshed each minute) and a link glyph when shared. Whole card opens the
+  scene. Hover, focus or the keyboard cursor reveals a `…` button; menu:
+  Rename, Share, Duplicate, Move, Move to trash. Middle-click / Cmd-click
+  opens a new tab (it is a real `<a>`).
 
 Activity rail (right, hidden under 1180 px): `GET /api/activity`, grouped by
-day ("today", "yesterday", weekday within the week, else "12 aug"), each entry
-one line of muted verb + ink scene link + muted detail, then the time
+day ("Today", "Yesterday", weekday within the week, else "12 Aug"), each entry
+one line of muted verb + bold scene link + muted detail, then the time
 (relative today, `HH:MM` otherwise) and `by <actor>` when the actor is not the
-signed-in user ("someone with the link" for anonymous editors). Scenes in the
-trash link to `/trash`; deleted scenes are struck through and not linked. The
-rail refreshes with the scene list.
-- Trash view: same cards, menu is restore, delete permanently; a top notice
-  "scenes in the trash are deleted after 30 days".
+signed-in user ("someone with the link" for anonymous editors). Scene names
+are current while the scene exists. Scenes in the trash link to `/trash`;
+deleted scenes are struck through and not linked. The rail refreshes with the
+scene list.
+- Trash view: same cards, menu is Restore, Delete permanently; a top notice
+  "Scenes in the trash are deleted after 30 days".
 - Empty states: one line of muted copy.
 - Drag and drop of `.excalidraw` files anywhere over the grid imports each as
   a scene into the current collection (parse with upstream `loadFromBlob`,
@@ -168,8 +168,8 @@ rail refreshes with the scene list.
 - Share… from the dashboard opens the same access selector + link + copy as
   the editor's share dialog.
 - Rename is inline in the card.
-- Under 800 px the sidebar collapses behind a menu button; the grid goes to two
-  columns at 480 px and key hints are hidden.
+- Under 800 px the sidebar collapses behind a menu button; the grid goes to one
+  column at 480 px.
 
 ### Keyboard
 
@@ -203,9 +203,9 @@ over label and keywords; with no query it is grouped by category and shows
 the six most recent scenes. Sort choices, empty trash and sign out are
 palette-only. `mod` is ⌘ on macOS and ctrl elsewhere; chips spell it out.
 
-Sign-in screen: centred column, the `draw` wordmark, one line of muted copy,
-"sign in with google" button (calls `/api/auth/oidc/start?next=…`), and an
-error line for `?error=not_allowed` ("this account is not allowed here") or
+Sign-in screen: centred island, the Excalidraw logo, one line of muted copy,
+"Sign in with Google" button (calls `/api/auth/oidc/start?next=…`), and an
+error line for `?error=not_allowed` ("This account is not allowed here") or
 `?error=oidc`. When `DRAW_DEV_LOGIN=1`
 the server also reports `devLogin: true` in `GET /api/auth/config` and the page
 shows an email field with "Sign in (dev)".
@@ -340,7 +340,8 @@ Activity (signed in, owner scoped)
   Activity { id, kind, sceneId|null, sceneName, detail, actorId|null, actorName, at,
              sceneState: "live"|"trash"|"gone" }
   ```
-  `kind` is one of `created`, `edited`, `renamed` (detail: previous name),
+  `sceneName` is the scene's current name while it exists, else the last one
+  recorded. `kind` is one of `created`, `edited`, `renamed` (detail: previous name),
   `moved` (detail: target collection name, empty when removed from every
   collection), `shared` (detail: new share mode), `duplicated` (detail: source
   name), `trashed`, `restored`, `deleted`. Rows are written after the mutation
