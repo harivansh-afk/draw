@@ -168,8 +168,40 @@ rail refreshes with the scene list.
 - Share… from the dashboard opens the same access selector + link + copy as
   the editor's share dialog.
 - Rename is inline in the card.
-- Under 800 px the sidebar collapses behind a menu button; the grid goes to one
-  column at 480 px.
+- Under 800 px the sidebar collapses behind a menu button; the grid goes to two
+  columns at 480 px and key hints are hidden.
+
+### Keyboard
+
+One capture-phase `keydown` listener on the document, mounted by the dashboard
+root; it yields while a menu, dialog, the palette or the key sheet is open and
+ignores keys typed into fields except `esc` and the palette chords. Sequences
+resolve through a trie with an 800 ms prefix timeout; a pending prefix shows as
+a chip bottom-right. A grid cursor (outlined card, tracked by scene id so it
+survives refreshes) is what scene commands act on; removing the card under it
+moves it to the neighbour.
+
+| keys | command |
+| --- | --- |
+| `j` `k` `h` `l`, arrows | move the cursor (no wrapping) |
+| `g g`, `G` | first, last scene |
+| `enter`, `o` / `shift+enter` | open / open in a new tab |
+| `r` `s` `m` `y` | rename, share, move to collection, duplicate |
+| `d d` | move to trash; in the trash, delete permanently (confirm dialog) |
+| `u` | restore (trash) |
+| `n` `i` `c` | new scene, import, new collection |
+| `g d`, `g t`, `g 1`…`g 9`, `[` `]` | dashboard, trash, nth collection, previous/next collection |
+| `/` | focus search |
+| `,` | toggle light/dark |
+| `mod+k`, `mod+/`, `mod+shift+p` | command palette (the last two match the editor) |
+| `?` | key sheet |
+| `esc` | clear search, then blur it, then drop the cursor, then close the sidebar |
+
+The palette lists every enabled command with its chip, `go to <collection>`
+for each collection and `open <scene>` for the visible scenes, fuzzy-ranked
+over label and keywords; with no query it is grouped by category and shows
+the six most recent scenes. Sort choices, empty trash and sign out are
+palette-only. `mod` is ⌘ on macOS and ctrl elsewhere; chips spell it out.
 
 Sign-in screen: centred column, the `draw` wordmark, one line of muted copy,
 "sign in with google" button (calls `/api/auth/oidc/start?next=…`), and an
