@@ -308,6 +308,28 @@ func TestRoomsHistoryConcurrency(t *testing.T) {
 	status(t, f.request("PUT", path, payload, owner, map[string]string{"If-Match": "\"3\""}), 413)
 }
 
+func TestInvalidatedThumbnail(t *testing.T) {
+	f := setup(t, true)
+	owner := f.login("owner@example.com")
+	scene := f.scene(owner)
+	base := "/api/scenes/" + scene.Scene.ID
+	var pngData bytes.Buffer
+	_ = png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 2, 2)))
+	status(t, f.request("PUT", base+"/thumbnail", pngData.Bytes(), owner, map[string]string{"Content-Type": "image/png"}), 204)
+	if _, err := f.s.Store.DB.Exec("UPDATE scenes SET thumbnail_updated_at=NULL WHERE id=?", scene.Scene.ID); err != nil {
+		t.Fatal(err)
+	}
+	status(t, f.request("GET", base+"/thumbnail", nil, owner, nil), 404)
+	r := f.request("POST", base+"/duplicate", map[string]any{}, owner, nil)
+	status(t, r, 201)
+	copy := readJSON[sceneAccess](t, r)
+	if copy.Scene.HasThumbnail {
+		t.Fatal("duplicate revived invalidated thumbnail")
+	}
+	status(t, f.request("PUT", base+"/thumbnail", pngData.Bytes(), owner, map[string]string{"Content-Type": "image/png"}), 204)
+	status(t, f.request("GET", base+"/thumbnail", nil, owner, nil), 200)
+}
+
 func TestFilesSnapshotsThumbnailsDuplicate(t *testing.T) {
 	f := setup(t, true)
 	owner := f.login("owner@example.com")

@@ -18,18 +18,20 @@ describe("thumbnailExportState", () => {
     expect(appState.exportScale).toBe(1);
   });
 
-  it("keeps the scene background and follows the dark theme", () => {
+  it("keeps the scene background but normalizes dark exports to light", () => {
     const { background, appState } = thumbnailExportState({
       theme: THEME.DARK,
       viewBackgroundColor: "#123456",
+      exportWithDarkMode: true,
     });
     expect(background).toBe("#123456");
-    expect(appState.exportWithDarkMode).toBe(true);
+    expect(appState.exportWithDarkMode).toBe(false);
+    expect(appState.theme).toBe(THEME.LIGHT);
   });
 
-  it("uses the dark canvas colour when a dark scene has no background", () => {
+  it("uses the same default background regardless of the saving theme", () => {
     expect(thumbnailExportState({ theme: THEME.DARK }).background).toBe(
-      "#121212",
+      "#ffffff",
     );
   });
 });

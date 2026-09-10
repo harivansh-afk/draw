@@ -340,14 +340,14 @@ func (s *Server) duplicateScene(w http.ResponseWriter, r *http.Request) (err err
 		}
 	}
 	thumb, err := os.ReadFile(s.Store.Thumb(old.ID))
-	if err == nil {
+	if err == nil && old.HasThumbnail {
 		if err = store.AtomicWrite(s.Store.Thumb(scene.ID), thumb); err != nil {
 			return err
 		}
 		if _, err = s.Store.DB.Exec("UPDATE scenes SET thumbnail_updated_at=? WHERE id=?", store.Now(), scene.ID); err != nil {
 			return err
 		}
-	} else if !os.IsNotExist(err) {
+	} else if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	scene, err = s.Store.Scene(scene.ID)

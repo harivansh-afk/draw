@@ -78,9 +78,9 @@ never fall back to the SPA.
    storage). `/local` keeps the full upstream welcome screen minus the
    Excalidraw+ sign-up item.
 10. Thumbnail: after each successful server save, at most once every 10 s, the
-    client renders a 640×400 PNG via `exportToBlob` (transparent background off,
-    scene theme) and `PUT /api/scenes/:id/thumbnail`. Owner and editors do this;
-    viewers do not.
+    client renders a 640×400 PNG via `exportToCanvas` (transparent background
+    off, light-mode colors regardless of the saving client's theme) and
+    `PUT /api/scenes/:id/thumbnail`. Owner and editors do this; viewers do not.
 11. Editor images: unchanged upstream `FileManager` flow, backed by
     `/api/files/rooms/<roomId>/<fileId>`.
 
@@ -167,6 +167,11 @@ scene list.
   in the top bar does the same.
 - Share… from the dashboard opens the same access selector + link + copy as
   the editor's share dialog.
+- Thumbnails store light-mode pixels. Dashboard and editor-sidebar previews apply
+  the upstream dark filter once at display time, with a 120 ms transition
+  (disabled for reduced motion). Switching theme does not fetch or regenerate
+  images. Legacy theme-baked thumbnails are invalidated once and backfilled
+  from persisted rooms.
 - Rename is inline in the card.
 - Under 800 px the sidebar collapses behind a menu button; the grid goes to one
   column at 480 px.

@@ -278,6 +278,9 @@ func (s *Server) getThumbnail(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if !scene.HasThumbnail {
+		return notFound()
+	}
 	return disk(w, r, s.Store.Thumb(scene.ID), "image/png", "private, max-age=60", true)
 }
 

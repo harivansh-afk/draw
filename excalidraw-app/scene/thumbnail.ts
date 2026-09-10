@@ -24,20 +24,17 @@ export type ThumbnailSource = {
   files?: BinaryFiles | null;
 };
 
-/** Background and export flags derived from a (possibly partial) app state. */
+/** Store light pixels so each viewer can apply their theme exactly once. */
 export const thumbnailExportState = (appState?: Partial<AppState> | null) => {
-  const theme = appState?.theme === THEME.DARK ? THEME.DARK : THEME.LIGHT;
-  const background =
-    appState?.viewBackgroundColor ||
-    (theme === THEME.DARK ? "#121212" : "#ffffff");
+  const background = appState?.viewBackgroundColor || "#ffffff";
   return {
     background,
     appState: {
       ...(appState || {}),
-      theme,
+      theme: THEME.LIGHT,
       exportBackground: true,
       viewBackgroundColor: background,
-      exportWithDarkMode: theme === THEME.DARK,
+      exportWithDarkMode: false,
       exportScale: 1,
     } as Partial<AppState>,
   };

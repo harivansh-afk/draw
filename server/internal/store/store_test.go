@@ -64,7 +64,7 @@ func TestMigrationsBackupPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if err = s.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != 3 {
+	if err = s.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != 4 {
 		t.Fatal(count, err)
 	}
 	var mode string
@@ -273,5 +273,47 @@ func TestLogActivityCoalescesEdits(t *testing.T) {
 	}
 	if list[len(list)-1].At != Before(now.Add(2*time.Minute)) {
 		t.Fatalf("coalesced entry keeps the latest time: %s", list[len(list)-1].At)
+	}
+}
+
+func TestLightThumbnailMigration(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := Now()
+	for _, query := range []string{
+		"INSERT INTO users VALUES('u','issuer','sub','owner@example.com','Owner','',?,?)",
+		"INSERT INTO scenes VALUES('scene','u','Drawing',NULL,'key','private',?,?,NULL,'legacy')",
+	} {
+		if _, err := s.DB.Exec(query, now, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.DB.Exec("DELETE FROM schema_migrations WHERE version='004_light_thumbnails.sql'"); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err = Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene, err := s.Scene("scene")
+	if err != nil || scene.HasThumbnail || scene.UpdatedAt != now {
+		t.Fatalf("legacy thumbnail was not invalidated without changing scene: %+v, %v", scene, err)
+	}
+	if _, err := s.DB.Exec("UPDATE scenes SET thumbnail_updated_at=? WHERE id='scene'", now); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err = Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	scene, err = s.Scene("scene")
+	if err != nil || !scene.HasThumbnail {
+		t.Fatalf("regenerated thumbnail invalidated on restart: %+v, %v", scene, err)
 	}
 }
