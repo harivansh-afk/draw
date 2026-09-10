@@ -23,6 +23,7 @@ import { ShortcutsHelp } from "./ShortcutsHelp";
 import { Sidebar } from "./Sidebar";
 import { filterScenes, nextUntitledName, sortScenes } from "./state";
 import { createBackfill, generateThumbnail } from "./thumbnails";
+import { pencilIcon, uploadIcon } from "./icons";
 import { Button, errorMessage, Kbd, useToast } from "./ui";
 
 import type { Activity, Collection, SceneMeta, User } from "../data/api";
@@ -136,7 +137,7 @@ export const Dashboard = ({
     try {
       await Promise.all([loadScenes(), loadCollections(), loadActivity()]);
     } catch (error) {
-      toast.push(errorMessage(error, "could not load scenes"));
+      toast.push(errorMessage(error, "Could not load scenes"));
     }
   }, [loadScenes, loadCollections, loadActivity, toast]);
 
@@ -274,7 +275,7 @@ export const Dashboard = ({
       });
       window.location.assign(editorPath(access.scene.id));
     } catch (error) {
-      toast.push(errorMessage(error, "could not create a scene"));
+      toast.push(errorMessage(error, "Could not create a scene"));
       setCreating(false);
     }
   };
@@ -282,7 +283,7 @@ export const Dashboard = ({
   const importFiles = async (files: FileList | File[]) => {
     const list = Array.from(files).filter(isExcalidrawFile);
     if (!list.length) {
-      toast.push("drop .excalidraw files to import them");
+      toast.push("Drop .excalidraw files to import them");
       return;
     }
     setImporting((count) => count + list.length);
@@ -292,14 +293,14 @@ export const Dashboard = ({
         await importSceneFile(file, collectionId);
         imported++;
       } catch (error) {
-        toast.push(errorMessage(error, `could not import ${file.name}`));
+        toast.push(errorMessage(error, `Could not import ${file.name}`));
       } finally {
         setImporting((count) => count - 1);
       }
     }
     if (imported) {
       toast.push(
-        imported === 1 ? "imported 1 scene" : `imported ${imported} scenes`,
+        imported === 1 ? "Imported 1 scene" : `Imported ${imported} scenes`,
         "info",
       );
     }
@@ -313,25 +314,25 @@ export const Dashboard = ({
           patchScene({ ...scene, name });
           patchScene(await api.scenes.update(scene.id, { name }));
         },
-        "could not rename",
+        "Could not rename",
         false,
       ),
     duplicate: (scene) =>
       run(async () => {
         await api.scenes.duplicate(scene.id);
-      }, "could not duplicate"),
+      }, "Could not duplicate"),
     move: (scene) => setDialog({ kind: "move", scene }),
     share: (scene) => setDialog({ kind: "share", scene }),
     trash: (scene) =>
       run(async () => {
         removeScene(scene.id);
         await api.scenes.trash(scene.id);
-      }, "could not move to trash"),
+      }, "Could not move to trash"),
     restore: (scene) =>
       run(async () => {
         removeScene(scene.id);
         await api.scenes.restore(scene.id);
-      }, "could not restore"),
+      }, "Could not restore"),
     deletePermanently: (scene) => setDialog({ kind: "delete", scene }),
   };
 
@@ -451,10 +452,10 @@ export const Dashboard = ({
   const { pending } = useKeyEngine(ctx);
 
   const headerTitle = inTrash
-    ? "trash"
+    ? "Trash"
     : currentCollection
     ? currentCollection.name
-    : "dashboard";
+    : "Dashboard";
 
   const headerActions = inTrash ? (
     <Button
@@ -462,24 +463,29 @@ export const Dashboard = ({
       disabled={!scenes || scenes.length === 0}
       onClick={() => setDialog({ kind: "emptyTrash" })}
     >
-      empty trash
+      Empty trash
     </Button>
   ) : (
     <>
-      <ImportButton onImport={importFiles} hint="i" />
-      <Button variant="primary" hint="n" busy={creating} onClick={createScene}>
-        new scene
+      <ImportButton onImport={importFiles} />
+      <Button
+        variant="primary"
+        icon={pencilIcon}
+        busy={creating}
+        onClick={createScene}
+      >
+        New scene
       </Button>
     </>
   );
 
   const sectionLabel = searching
-    ? `results for “${query.trim()}”`
+    ? `Results for “${query.trim()}”`
     : inTrash
     ? null
     : currentCollection
-    ? "scenes"
-    : "recent";
+    ? null
+    : "Recent";
 
   return (
     <div
@@ -504,12 +510,12 @@ export const Dashboard = ({
           run(async () => {
             const created = await api.collections.create(name);
             navigate({ view: "scenes", collectionId: created.id });
-          }, "could not create the collection")
+          }, "Could not create the collection")
         }
         onRenameCollection={(id, name) =>
           run(async () => {
             await api.collections.rename(id, name);
-          }, "could not rename the collection")
+          }, "Could not rename the collection")
         }
         onDeleteCollection={async (id) => {
           const collection = collections.find((c) => c.id === id);
@@ -541,7 +547,7 @@ export const Dashboard = ({
                 inTrash && scenes
                   ? `${scenes.length} deleted ${
                       scenes.length === 1 ? "scene" : "scenes"
-                    } · restore or remove permanently`
+                    } · Restore or remove permanently`
                   : undefined
               }
               sort={sort}
@@ -553,21 +559,21 @@ export const Dashboard = ({
             {importing > 0 && (
               <div className="dash-notice dash-notice--busy">
                 <span className="dash-spinner" />
-                importing {importing} {importing === 1 ? "file" : "files"}…
+                Importing {importing} {importing === 1 ? "file" : "files"}…
               </div>
             )}
 
             {inTrash && (
               <div className="dash-notice">
-                scenes in the trash are deleted after 30 days.
+                Scenes in the trash are deleted after 30 days.
               </div>
             )}
 
             {sectionLabel && (
-              <h2 className="dash-label">
+              <h2 className="dash-section-title">
                 {sectionLabel}
                 {visibleScenes && (
-                  <span className="dash-label__count">
+                  <span className="dash-section-title__count">
                     {visibleScenes.length}
                   </span>
                 )}
@@ -608,7 +614,8 @@ export const Dashboard = ({
             {dragging && (
               <div className="dash-dropzone" aria-hidden>
                 <div className="dash-dropzone__card">
-                  drop .excalidraw files to import them
+                  <span className="dash-dropzone__icon">{uploadIcon}</span>
+                  Drop .excalidraw files to import them
                   {currentCollection ? ` into ${currentCollection.name}` : ""}
                 </div>
               </div>
@@ -651,32 +658,32 @@ export const Dashboard = ({
               await api.scenes.update(dialog.scene.id, {
                 collectionId: target,
               });
-            }, "could not move the scene")
+            }, "Could not move the scene")
           }
         />
       )}
       {dialog?.kind === "delete" && (
         <ConfirmDialog
-          title="delete permanently?"
-          body={`“${dialog.scene.name}” and its history will be deleted for everyone. this cannot be undone.`}
-          confirmLabel="delete permanently"
+          title="Delete permanently?"
+          body={`“${dialog.scene.name}” and its history will be deleted for everyone. This cannot be undone.`}
+          confirmLabel="Delete permanently"
           danger
           onClose={() => setDialog(null)}
           onConfirm={() =>
             run(async () => {
               removeScene(dialog.scene.id);
               await api.scenes.deletePermanently(dialog.scene.id);
-            }, "could not delete the scene")
+            }, "Could not delete the scene")
           }
         />
       )}
       {dialog?.kind === "emptyTrash" && (
         <ConfirmDialog
-          title="empty the trash?"
+          title="Empty the trash?"
           body={`${scenes?.length ?? 0} ${
             scenes?.length === 1 ? "scene" : "scenes"
-          } will be deleted for everyone. this cannot be undone.`}
-          confirmLabel="delete everything"
+          } will be deleted for everyone. This cannot be undone.`}
+          confirmLabel="Delete everything"
           danger
           onClose={() => setDialog(null)}
           onConfirm={() =>
@@ -686,15 +693,15 @@ export const Dashboard = ({
               await Promise.all(
                 ids.map((id) => api.scenes.deletePermanently(id)),
               );
-            }, "could not empty the trash")
+            }, "Could not empty the trash")
           }
         />
       )}
       {dialog?.kind === "deleteCollection" && (
         <ConfirmDialog
-          title={`delete “${dialog.collection.name}”?`}
-          body="the scenes inside stay in your dashboard; only the collection is removed."
-          confirmLabel="delete collection"
+          title={`Delete “${dialog.collection.name}”?`}
+          body="The scenes inside stay in your dashboard; only the collection is removed."
+          confirmLabel="Delete collection"
           danger
           onClose={() => setDialog(null)}
           onConfirm={() =>
@@ -703,7 +710,7 @@ export const Dashboard = ({
               if (collectionId === dialog.collection.id) {
                 navigate({ view: "scenes", collectionId: null }, true);
               }
-            }, "could not delete the collection")
+            }, "Could not delete the collection")
           }
         />
       )}
@@ -721,12 +728,12 @@ const EmptyState = ({
   collectionName?: string;
 }) => {
   const copy = searching
-    ? "no scenes match."
+    ? "No scenes match your search."
     : inTrash
-    ? "the trash is empty."
+    ? "The trash is empty."
     : collectionName
-    ? `no scenes in ${collectionName} yet.`
-    : "no scenes yet. press n to start one, or drop an .excalidraw file here.";
+    ? `No scenes in ${collectionName} yet.`
+    : "No scenes yet. Press n to start one, or drop an .excalidraw file here.";
   return (
     <div className="dash-empty">
       <p>{copy}</p>

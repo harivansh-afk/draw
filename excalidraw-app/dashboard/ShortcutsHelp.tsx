@@ -59,15 +59,15 @@ export const ShortcutsHelp = ({
     >
       <div className="dash-help" role="dialog" aria-label="Keyboard shortcuts">
         <div className="dash-help__head">
-          <span className="dash-label">keys</span>
+          <h2 className="dash-help__title">Keyboard shortcuts</h2>
           <span className="dash-help__close">
-            <Kbd keys="esc" /> close
+            <Kbd keys="esc" /> Close
           </span>
         </div>
         <div className="dash-help__columns">
           {groups.map((group) => (
             <section key={group.category} className="dash-help__group">
-              <h3 className="dash-help__title">{group.category}</h3>
+              <h3 className="dash-help__group-title">{group.category}</h3>
               {group.rows.map((command) => (
                 <div key={command.id} className="dash-help__row">
                   <span className="dash-help__keys">

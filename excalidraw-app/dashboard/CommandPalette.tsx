@@ -54,7 +54,7 @@ const buildItems = (ctx: CommandContext): Item[] => {
     }
     items.push({
       id: `collection:${collection.id}`,
-      label: `go to ${collection.name}`,
+      label: `Go to ${collection.name}`,
       category: "navigate",
       keywords: `${collection.name} collection`,
       keys: index < 9 ? formatKeys(["g", String(index + 1)]) : null,
@@ -170,7 +170,7 @@ export const CommandPalette = ({
         <input
           ref={inputRef}
           className="dash-palette__input"
-          placeholder="type a command or a scene"
+          placeholder="Type a command or a scene…"
           aria-label="Command"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -179,7 +179,7 @@ export const CommandPalette = ({
         />
         <div className="dash-palette__list" ref={listRef} role="listbox">
           {visible.length === 0 && (
-            <div className="dash-palette__empty">nothing matches.</div>
+            <div className="dash-palette__empty">Nothing matches.</div>
           )}
           {visible.map((item, index) => {
             const grouped = !query.trim();
@@ -205,7 +205,7 @@ export const CommandPalette = ({
                   onClick={() => run(item)}
                 >
                   {item.category === "open" && (
-                    <span className="dash-palette__verb">open </span>
+                    <span className="dash-palette__verb">Open </span>
                   )}
                   <span className="dash-palette__label">{item.label}</span>
                   {!grouped && (
@@ -221,13 +221,13 @@ export const CommandPalette = ({
         </div>
         <div className="dash-palette__foot">
           <span>
-            <Kbd keys="↑ ↓" /> move
+            <Kbd keys="↑ ↓" /> Move
           </span>
           <span>
-            <Kbd keys="↵" /> run
+            <Kbd keys="↵" /> Run
           </span>
           <span>
-            <Kbd keys="esc" /> close
+            <Kbd keys="esc" /> Close
           </span>
         </div>
       </div>

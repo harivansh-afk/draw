@@ -22,8 +22,6 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "medium" | "large";
   icon?: React.ReactNode;
   trailing?: React.ReactNode;
-  /** keyboard shortcut shown after the label, e.g. "n" or "g t" */
-  hint?: string;
   busy?: boolean;
 };
 
@@ -34,7 +32,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size = "medium",
       icon,
       trailing,
-      hint,
       busy,
       className,
       children,
@@ -62,7 +59,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         icon && <span className="dash-button__icon">{icon}</span>
       )}
       {children && <span className="dash-button__label">{children}</span>}
-      {hint && <Kbd keys={hint} />}
       {trailing}
     </button>
   ),
@@ -88,7 +84,6 @@ export const IconButton = React.forwardRef<
     type="button"
     className={clsx("dash-icon-button", className)}
     aria-label={label}
-    title={label}
     {...rest}
   >
     {children}
@@ -150,7 +145,6 @@ type MenuItemSpec =
       href?: string;
       disabled?: boolean;
       selected?: boolean;
-      hint?: string;
     }
   | { kind: "separator" }
   | { kind: "heading"; label: string };
@@ -217,12 +211,17 @@ export const Menu = ({
     };
   }, [anchor, onClose]);
 
+  // Focus once the menu is positioned; while it is still measuring it is
+  // visibility:hidden and focus() is a no-op, which left Escape unhandled.
   useEffect(() => {
+    if (!position) {
+      return;
+    }
     const first = ref.current?.querySelector<HTMLElement>(
       "[role=menuitem]:not([aria-disabled=true])",
     );
     first?.focus();
-  }, []);
+  }, [position]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     const focusable = Array.from(
@@ -295,8 +294,7 @@ export const Menu = ({
           <>
             {item.icon && <span className="dash-menu__icon">{item.icon}</span>}
             <span className="dash-menu__label">{item.label}</span>
-            {item.hint && <Kbd keys={item.hint} />}
-            {item.selected && <span className="dash-menu__check">·</span>}
+            {item.selected && <span className="dash-menu__check">✓</span>}
           </>
         );
         const className = clsx("dash-menu__item", {

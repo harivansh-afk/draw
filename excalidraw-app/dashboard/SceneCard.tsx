@@ -66,51 +66,40 @@ export const SceneCard = ({
   const items: MenuItem[] = inTrash
     ? [
         {
-          label: "restore",
+          label: "Restore",
           icon: restoreIcon,
-          hint: "u",
           onSelect: () => actions.restore(scene),
         },
         { kind: "separator" },
         {
-          label: "delete permanently",
+          label: "Delete permanently",
           icon: TrashIcon,
           danger: true,
-          hint: "d d",
           onSelect: () => actions.deletePermanently(scene),
         },
       ]
     : [
+        { label: "Rename", icon: pencilIcon, onSelect: onRenameStart },
         {
-          label: "rename",
-          icon: pencilIcon,
-          hint: "r",
-          onSelect: onRenameStart,
-        },
-        {
-          label: "share",
+          label: "Share",
           icon: shareIcon,
-          hint: "s",
           onSelect: () => actions.share(scene),
         },
         {
-          label: "duplicate",
+          label: "Duplicate",
           icon: DuplicateIcon,
-          hint: "y",
           onSelect: () => actions.duplicate(scene),
         },
         {
-          label: "move",
+          label: "Move",
           icon: folderMoveIcon,
-          hint: "m",
           onSelect: () => actions.move(scene),
         },
         { kind: "separator" },
         {
-          label: "move to trash",
+          label: "Move to trash",
           icon: TrashIcon,
           danger: true,
-          hint: "d d",
           onSelect: () => actions.trash(scene),
         },
       ];
@@ -191,7 +180,7 @@ export const SceneCard = ({
           <div className="dash-card__row">
             <span className="dash-card__time">
               {inTrash && scene.deletedAt
-                ? `deleted ${relativeTime(scene.deletedAt, now)}`
+                ? `Deleted ${relativeTime(scene.deletedAt, now)}`
                 : relativeTime(scene.updatedAt, now)}
             </span>
             {shared && !inTrash && (
@@ -199,8 +188,8 @@ export const SceneCard = ({
                 className="dash-card__shared"
                 title={
                   scene.shareMode === "edit"
-                    ? "anyone with the link can edit"
-                    : "anyone with the link can view"
+                    ? "Anyone with the link can edit"
+                    : "Anyone with the link can view"
                 }
               >
                 {LinkIcon}

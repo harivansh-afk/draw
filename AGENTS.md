@@ -79,8 +79,9 @@ and imports only public `@excalidraw/common` helpers (`KEYS`' platform rule,
 - `grid.ts`, `fuzzy.ts`, `format.ts` are the cursor math, palette ranking
   and chip rendering. All of it is covered by `dashboard/tests/keyboard.test.ts`.
 
-The dashboard's visual language is harivan.sh's (mono, three colours, dotted
-underlines); see SPEC.md "Dashboard". The editor's own UI stays upstream's.
+The dashboard keeps Excalidraw's visual language with a neutral greyscale in
+place of the purple; see SPEC.md "Dashboard". The editor's own UI stays
+upstream's.
 
 ## Upstream guidelines (kept from upstream AGENTS.md)
 

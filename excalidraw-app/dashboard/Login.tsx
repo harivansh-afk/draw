@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 
+import { ExcalidrawLogo } from "@excalidraw/excalidraw/components/ExcalidrawLogo";
+
 import { api } from "../data/api";
 
+import { loginIcon } from "./icons";
 import { Button, TextInput, errorMessage } from "./ui";
 
 import type { AuthConfig } from "../data/api";
 
 const ERRORS: Record<string, string> = {
-  not_allowed: "this account is not allowed here.",
-  oidc: "sign-in with the identity provider failed. try again.",
+  not_allowed: "This account is not allowed here.",
+  oidc: "Sign-in with the identity provider failed. Try again.",
 };
 
 export const Login = ({
@@ -41,22 +44,20 @@ export const Login = ({
       await api.auth.devLogin(email.trim());
       window.location.assign(next);
     } catch (err) {
-      setLocalError(errorMessage(err, "could not sign in"));
+      setLocalError(errorMessage(err, "Could not sign in"));
       setBusy(false);
     }
   };
 
   const message =
-    localError || (error ? ERRORS[error] || "sign-in failed." : null);
+    localError || (error ? ERRORS[error] || "Sign-in failed." : null);
 
   return (
     <div className="dash-login">
       <div className="dash-login__card">
-        <div className="dash-wordmark" aria-label="draw">
-          draw
-        </div>
+        <ExcalidrawLogo size="normal" withText />
         <p className="dash-login__lede">
-          whiteboards, saved and shared from your own server.
+          Your whiteboards, saved and shared from your own server.
         </p>
         {message && (
           <div className="dash-login__error" role="alert">
@@ -66,10 +67,11 @@ export const Login = ({
         <Button
           variant="primary"
           size="large"
+          icon={loginIcon}
           className="dash-login__provider"
           onClick={() => window.location.assign(api.auth.oidcStartUrl(next))}
         >
-          sign in with {(config?.provider || "Google").toLowerCase()}
+          Sign in with {config?.provider || "Google"}
         </Button>
         {config?.devLogin && (
           <form className="dash-login__dev" onSubmit={devLogin}>
@@ -77,7 +79,7 @@ export const Login = ({
               <span>development</span>
             </div>
             <TextInput
-              label="email"
+              label="Email"
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -91,7 +93,7 @@ export const Login = ({
               busy={busy}
               disabled={!email.trim()}
             >
-              sign in (dev)
+              Sign in (dev)
             </Button>
           </form>
         )}

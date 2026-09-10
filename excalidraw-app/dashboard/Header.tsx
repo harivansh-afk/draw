@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 
-import { chevronUpDownIcon, HamburgerMenuIcon } from "./icons";
+import { chevronUpDownIcon, HamburgerMenuIcon, importIcon } from "./icons";
 import { SORT_LABELS } from "./state";
 import { Button, IconButton, Menu, useMenu } from "./ui";
 
@@ -39,7 +39,6 @@ export const Header = ({
         {sort && onSortChange && (
           <>
             <Button
-              variant="ghost"
               className="dash-header__sort"
               onClick={sortMenu.open}
               aria-haspopup="menu"
@@ -50,7 +49,6 @@ export const Header = ({
                 </span>
               }
             >
-              <span className="dash-header__sort-prefix">sort </span>
               {SORT_LABELS[sort]}
             </Button>
             {sortMenu.isOpen && (
@@ -59,7 +57,7 @@ export const Header = ({
                 onClose={sortMenu.close}
                 minWidth={160}
                 items={[
-                  { kind: "heading", label: "sort by" },
+                  { kind: "heading", label: "Sort by" },
                   ...(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
                     label: SORT_LABELS[key],
                     selected: key === sort,
@@ -76,19 +74,17 @@ export const Header = ({
   );
 };
 
-/** "import" button backed by a hidden multi-file input. */
+/** "Import" button backed by a hidden multi-file input. */
 export const ImportButton = ({
   onImport,
-  hint,
 }: {
   onImport: (files: FileList) => void;
-  hint?: string;
 }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   return (
     <>
-      <Button hint={hint} onClick={() => fileInput.current?.click()}>
-        import
+      <Button icon={importIcon} onClick={() => fileInput.current?.click()}>
+        Import
       </Button>
       <input
         ref={fileInput}

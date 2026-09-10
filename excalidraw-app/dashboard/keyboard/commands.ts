@@ -83,7 +83,7 @@ const inTrash = (ctx: CommandContext) => ctx.view === "trash";
 const move = (direction: "up" | "down" | "left" | "right", keys: Chord[][]) =>
   ({
     id: `cursor.${direction}`,
-    label: `cursor ${direction}`,
+    label: `Cursor ${direction}`,
     category: "scene",
     keys,
     hidden: true,
@@ -110,7 +110,7 @@ export const COMMANDS: Command[] = [
   move("right", [["l"], ["right"]]),
   {
     id: "cursor.first",
-    label: "first scene",
+    label: "First scene",
     category: "scene",
     keys: [["g", "g"]],
     hidden: true,
@@ -119,7 +119,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "cursor.last",
-    label: "last scene",
+    label: "Last scene",
     category: "scene",
     keys: [["G"]],
     hidden: true,
@@ -128,7 +128,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.open",
-    label: "open",
+    label: "Open",
     category: "scene",
     keys: [["enter"], ["o"]],
     when: (ctx) => hasCursor(ctx) && inScenes(ctx),
@@ -142,7 +142,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.openTab",
-    label: "open in new tab",
+    label: "Open in new tab",
     category: "scene",
     keys: [["shift+enter"]],
     when: (ctx) => hasCursor(ctx) && inScenes(ctx),
@@ -152,7 +152,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.rename",
-    label: "rename",
+    label: "Rename",
     category: "scene",
     keys: [["r"]],
     when: (ctx) => hasCursor(ctx) && inScenes(ctx),
@@ -160,7 +160,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.share",
-    label: "share",
+    label: "Share",
     category: "scene",
     keys: [["s"]],
     when: (ctx) => hasCursor(ctx) && inScenes(ctx),
@@ -168,7 +168,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.move",
-    label: "move to collection",
+    label: "Move to collection",
     category: "scene",
     keys: [["m"]],
     when: (ctx) => hasCursor(ctx) && inScenes(ctx),
@@ -176,7 +176,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.duplicate",
-    label: "duplicate",
+    label: "Duplicate",
     category: "scene",
     keys: [["y"]],
     keywords: ["copy", "yank"],
@@ -185,7 +185,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.remove",
-    label: (ctx) => (inTrash(ctx) ? "delete permanently" : "move to trash"),
+    label: (ctx) => (inTrash(ctx) ? "Delete permanently" : "Move to trash"),
     category: "scene",
     keys: [["d", "d"]],
     keywords: ["delete", "remove"],
@@ -194,7 +194,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.restore",
-    label: "restore",
+    label: "Restore",
     category: "scene",
     keys: [["u"]],
     keywords: ["undo", "undelete"],
@@ -203,7 +203,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.new",
-    label: "new scene",
+    label: "New scene",
     category: "create",
     keys: [["n"]],
     keywords: ["create", "draw"],
@@ -212,7 +212,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "scene.import",
-    label: "import scenes",
+    label: "Import scenes",
     category: "create",
     keys: [["i"]],
     keywords: ["upload", "excalidraw", "file"],
@@ -221,14 +221,14 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "collection.new",
-    label: "new collection",
+    label: "New collection",
     category: "create",
     keys: [["c"]],
     run: (ctx) => ctx.newCollection(),
   },
   {
     id: "go.dashboard",
-    label: "go to dashboard",
+    label: "Go to dashboard",
     category: "navigate",
     keys: [["g", "d"]],
     keywords: ["home", "scenes"],
@@ -236,7 +236,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "go.trash",
-    label: "go to trash",
+    label: "Go to trash",
     category: "navigate",
     keys: [["g", "t"]],
     run: (ctx) => ctx.navigate({ view: "trash" }),
@@ -245,7 +245,7 @@ export const COMMANDS: Command[] = [
     const n = i + 1;
     return {
       id: `go.collection.${n}`,
-      label: (ctx) => `go to ${ctx.collections[i]?.name ?? `collection ${n}`}`,
+      label: (ctx) => `Go to ${ctx.collections[i]?.name ?? `collection ${n}`}`,
       category: "navigate",
       keys: [["g", String(n)]],
       hidden: true,
@@ -256,7 +256,7 @@ export const COMMANDS: Command[] = [
   }),
   {
     id: "collection.next",
-    label: "next collection",
+    label: "Next collection",
     category: "navigate",
     keys: [["]"]],
     when: (ctx) => ctx.collections.length > 0,
@@ -264,7 +264,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "collection.prev",
-    label: "previous collection",
+    label: "Previous collection",
     category: "navigate",
     keys: [["["]],
     when: (ctx) => ctx.collections.length > 0,
@@ -272,7 +272,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "search.focus",
-    label: "search",
+    label: "Search",
     category: "view",
     keys: [["/"]],
     keywords: ["find", "filter"],
@@ -280,28 +280,28 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "sort.updated",
-    label: "sort by last edited",
+    label: "Sort by last edited",
     category: "view",
     keys: [],
     run: (ctx) => ctx.setSort("updated"),
   },
   {
     id: "sort.name",
-    label: "sort by name",
+    label: "Sort by name",
     category: "view",
     keys: [],
     run: (ctx) => ctx.setSort("name"),
   },
   {
     id: "sort.created",
-    label: "sort by created",
+    label: "Sort by created",
     category: "view",
     keys: [],
     run: (ctx) => ctx.setSort("created"),
   },
   {
     id: "theme.toggle",
-    label: "toggle theme",
+    label: "Toggle theme",
     category: "view",
     keys: [[","]],
     keywords: ["dark", "light", "mode"],
@@ -309,7 +309,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "palette.open",
-    label: "command palette",
+    label: "Command palette",
     category: "view",
     keys: [["mod+k"], ["mod+/"], ["mod+shift+p"]],
     hidden: true,
@@ -317,7 +317,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "help.open",
-    label: "keyboard shortcuts",
+    label: "Keyboard shortcuts",
     category: "view",
     keys: [["?"]],
     keywords: ["help", "keys", "bindings"],
@@ -325,7 +325,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "trash.empty",
-    label: "empty trash",
+    label: "Empty trash",
     category: "view",
     keys: [],
     when: (ctx) => inTrash(ctx) && ctx.scenes.length > 0,
@@ -333,7 +333,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "escape",
-    label: "clear",
+    label: "Clear",
     category: "view",
     keys: [["escape"]],
     hidden: true,
@@ -363,7 +363,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "account.signOut",
-    label: "sign out",
+    label: "Sign out",
     category: "account",
     keys: [],
     run: (ctx) => ctx.signOut(),

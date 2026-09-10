@@ -14,19 +14,15 @@ export const dayLabel = (iso: string, now: number): string => {
   start.setHours(0, 0, 0, 0);
   const days = Math.floor((start.getTime() - startOfDay(then)) / DAY);
   if (days <= 0) {
-    return "today";
+    return "Today";
   }
   if (days === 1) {
-    return "yesterday";
+    return "Yesterday";
   }
   if (days < 7) {
-    return then
-      .toLocaleDateString(undefined, { weekday: "long" })
-      .toLowerCase();
+    return then.toLocaleDateString(undefined, { weekday: "long" });
   }
-  return then
-    .toLocaleDateString(undefined, { day: "numeric", month: "short" })
-    .toLowerCase();
+  return then.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 };
 
 const startOfDay = (date: Date) => {
@@ -47,40 +43,40 @@ export const describe = (
 ): { verb: string; detail: string | null } => {
   switch (entry.kind) {
     case "created":
-      return { verb: "created", detail: null };
+      return { verb: "Created", detail: null };
     case "edited":
-      return { verb: "edited", detail: null };
+      return { verb: "Edited", detail: null };
     case "renamed":
       return {
-        verb: "renamed",
+        verb: "Renamed",
         detail: entry.detail ? `from “${entry.detail}”` : null,
       };
     case "moved":
       return {
-        verb: "moved",
+        verb: "Moved",
         detail: entry.detail ? `to ${entry.detail}` : "out of its collection",
       };
     case "shared":
       return {
         verb:
           entry.detail === "private"
-            ? "made private"
+            ? "Made private"
             : entry.detail === "edit"
-            ? "opened for editing"
-            : "opened for viewing",
+            ? "Shared for editing"
+            : "Shared for viewing",
         detail: null,
       };
     case "duplicated":
       return {
-        verb: "duplicated",
+        verb: "Duplicated",
         detail: entry.detail ? `from “${entry.detail}”` : null,
       };
     case "trashed":
-      return { verb: "trashed", detail: null };
+      return { verb: "Moved to trash", detail: null };
     case "restored":
-      return { verb: "restored", detail: null };
+      return { verb: "Restored", detail: null };
     case "deleted":
-      return { verb: "deleted", detail: null };
+      return { verb: "Deleted", detail: null };
     default:
       return { verb: entry.kind, detail: null };
   }
@@ -117,9 +113,9 @@ export const ActivityRail = ({
   }
   return (
     <aside className="dash-rail" aria-label="Activity">
-      <h2 className="dash-label">activity</h2>
+      <h2 className="dash-rail__title">Activity</h2>
       {entries === null ? null : entries.length === 0 ? (
-        <p className="dash-rail__empty">nothing yet.</p>
+        <p className="dash-rail__empty">Nothing yet.</p>
       ) : (
         groups.map((group) => (
           <section key={group.label} className="dash-rail__day">
@@ -131,7 +127,7 @@ export const ActivityRail = ({
                   entry={entry}
                   userId={userId}
                   now={now}
-                  today={group.label === "today"}
+                  today={group.label === "Today"}
                 />
               ))}
             </ol>
