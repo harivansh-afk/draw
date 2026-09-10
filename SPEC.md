@@ -283,6 +283,23 @@ Collections (signed in, owner scoped)
 - `PATCH /api/collections/:id {name}` → `Collection`
 - `DELETE /api/collections/:id` → 204; scenes in it get `collectionId = null`
 
+Activity (signed in, owner scoped)
+- `GET /api/activity?limit=40` (1–200) → `{ activity: [Activity] }`, newest first.
+  ```
+  Activity { id, kind, sceneId|null, sceneName, detail, actorId|null, actorName, at,
+             sceneState: "live"|"trash"|"gone" }
+  ```
+  `kind` is one of `created`, `edited`, `renamed` (detail: previous name),
+  `moved` (detail: target collection name, empty when removed from every
+  collection), `shared` (detail: new share mode), `duplicated` (detail: source
+  name), `trashed`, `restored`, `deleted`. Rows are written after the mutation
+  succeeds and outlive the scene; `sceneName` is the name at the time.
+  `actorId` is null for anonymous share-link editors. Room saves record
+  `edited`, folded into the previous entry for the same scene when that entry
+  is `created`, `duplicated` or `edited`, by the same actor, and less than 30
+  minutes old (the entry keeps its kind and moves to the new time), so one
+  drawing session is one line. Rows older than 90 days are purged.
+
 Library (signed in)
 - `GET /api/library` → the stored JSON document verbatim, or 204 when none
 - `PUT /api/library` body JSON ≤ 16 MiB → 204
@@ -413,6 +430,8 @@ snapshots        id TEXT PK, data BLOB, created_at, ip
 libraries        user_id TEXT PK, data BLOB (JSON), updated_at
 settings         key TEXT PK, value TEXT     -- e.g. first_user_email
 imports          source_id TEXT PK, scene_id TEXT, imported_at TEXT -- source provenance
+activity         id INTEGER PK, owner_id FK, actor_id FK NULL, kind, scene_id NULL (no FK: rows
+                 outlive the scene), scene_name, detail, at   INDEX(owner_id, at), INDEX(scene_id, at)
 ```
 
 Files on disk: `DATA_DIR/files/rooms/<roomId>/<fileId>`,
@@ -421,7 +440,8 @@ Files on disk: `DATA_DIR/files/rooms/<roomId>/<fileId>`,
 
 Background jobs (in-process tickers): purge trashed scenes older than
 `DRAW_TRASH_RETENTION_DAYS`; delete expired sessions; delete ad-hoc rooms and
-their files untouched for 90 days; sweep orphan `files/rooms/<id>` directories
+their files untouched for 90 days; delete activity rows older than 90 days;
+sweep orphan `files/rooms/<id>` directories
 with neither a scene nor room row when every mtime in the directory is older
 than 90 days; delete snapshots older than 365 days.
 

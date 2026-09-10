@@ -129,6 +129,7 @@ func (s *Server) Handler(files fs.FS) http.Handler {
 		"POST /api/scenes/{id}/duplicate":         s.duplicateScene,
 		"PUT /api/scenes/{id}/thumbnail":          s.putThumbnail,
 		"GET /api/scenes/{id}/thumbnail":          s.getThumbnail,
+		"GET /api/activity":                       s.listActivity,
 		"GET /api/collections":                    s.listCollections,
 		"POST /api/collections":                   s.createCollection,
 		"PATCH /api/collections/{id}":             s.patchCollection,

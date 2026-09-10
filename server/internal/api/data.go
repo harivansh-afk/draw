@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	crypt "git.harivan.sh/harivansh-afk/draw/server/internal/crypto"
 	"git.harivan.sh/harivansh-afk/draw/server/internal/store"
@@ -120,6 +121,16 @@ func (s *Server) saveRoom(id, uid string, room store.Room, previous int64) error
 		return err
 	}
 	if _, err = tx.Exec("UPDATE scenes SET updated_at=? WHERE id=?", now, id); err != nil {
+		return err
+	}
+	var owner, name string
+	err = tx.QueryRow("SELECT owner_id,name FROM scenes WHERE id=?", id).Scan(&owner, &name)
+	if err == nil {
+		err = s.Store.LogActivity(tx, owner, uid, store.ActivityEdited, &id, name, "", time.Now())
+	} else if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
 		return err
 	}
 	return tx.Commit()

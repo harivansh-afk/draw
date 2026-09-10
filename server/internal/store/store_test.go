@@ -64,7 +64,7 @@ func TestMigrationsBackupPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if err = s.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != 2 {
+	if err = s.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != 3 {
 		t.Fatal(count, err)
 	}
 	var mode string
@@ -228,5 +228,50 @@ func TestBackupFiles(t *testing.T) {
 	data, err := os.ReadFile(copied)
 	if err != nil || string(data) != paths[0] {
 		t.Fatal("fallback copy changed bytes", string(data), err)
+	}
+}
+
+func TestLogActivityCoalescesEdits(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	now := time.Now()
+	if _, err = s.DB.Exec("INSERT INTO users VALUES('u','draw:dev','u','u@example.com','U','',?,?)", Before(now), Before(now)); err != nil {
+		t.Fatal(err)
+	}
+	id := "scene"
+	log := func(actor, kind string, at time.Time) {
+		if err := s.LogActivity(s.DB, "u", actor, kind, &id, "Untitled", "", at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	log("u", ActivityCreated, now)
+	log("u", ActivityEdited, now.Add(time.Minute))
+	log("u", ActivityEdited, now.Add(2*time.Minute))
+	log("", ActivityEdited, now.Add(3*time.Minute))
+	log("", ActivityEdited, now.Add(4*time.Minute))
+	log("u", ActivityEdited, now.Add(5*time.Minute))
+	log("u", ActivityEdited, now.Add(5*time.Minute+CoalesceWindow))
+	list, err := s.ListActivity("u", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, a := range list {
+		got = append(got, a.Kind+"/"+a.ActorName)
+	}
+	want := []string{"edited/U", "edited/U", "edited/", "created/U"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+	if list[len(list)-1].At != Before(now.Add(2*time.Minute)) {
+		t.Fatalf("coalesced entry keeps the latest time: %s", list[len(list)-1].At)
 	}
 }

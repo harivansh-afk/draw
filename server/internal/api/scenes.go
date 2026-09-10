@@ -129,6 +129,7 @@ func (s *Server) createScene(w http.ResponseWriter, r *http.Request) error {
 	if err = s.insertScene(scene); err != nil {
 		return err
 	}
+	s.record(r, store.ActivityCreated, scene, "")
 	JSON(w, 201, access(scene, "owner"))
 	return nil
 }
@@ -157,6 +158,7 @@ func (s *Server) patchScene(w http.ResponseWriter, r *http.Request) error {
 	if err = decode(w, r, &v, 16384); err != nil {
 		return err
 	}
+	before := scene
 	if v.Name != nil {
 		if !validName(*v.Name) {
 			return bad("Invalid name")
@@ -182,8 +184,37 @@ func (s *Server) patchScene(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if scene.Name != before.Name {
+		s.record(r, store.ActivityRenamed, scene, before.Name)
+	}
+	if scene.ShareMode != before.ShareMode {
+		s.record(r, store.ActivityShared, scene, scene.ShareMode)
+	}
+	if !sameCollection(scene.CollectionID, before.CollectionID) {
+		s.record(r, store.ActivityMoved, scene, s.collectionLabel(scene.CollectionID))
+	}
 	JSON(w, 200, scene)
 	return nil
+}
+
+func sameCollection(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+// collectionLabel names the timeline's move target; the empty string means
+// the scene left every collection.
+func (s *Server) collectionLabel(id *string) string {
+	if id == nil {
+		return ""
+	}
+	var name string
+	if err := s.Store.DB.QueryRow("SELECT name FROM collections WHERE id=?", *id).Scan(&name); err != nil {
+		return ""
+	}
+	return name
 }
 
 func (s *Server) deleteScene(w http.ResponseWriter, r *http.Request) error {
@@ -197,9 +228,13 @@ func (s *Server) deleteScene(w http.ResponseWriter, r *http.Request) error {
 		err = s.Store.DeleteScene(scene.ID)
 		if err == nil {
 			s.Hub.Kick(scene.ID)
+			s.record(r, store.ActivityDeleted, scene, "")
 		}
 	} else {
 		_, err = s.Store.DB.Exec("UPDATE scenes SET deleted_at=COALESCE(deleted_at,?),updated_at=? WHERE id=?", store.Now(), store.Now(), scene.ID)
+		if err == nil && scene.DeletedAt == nil {
+			s.record(r, store.ActivityTrashed, scene, "")
+		}
 	}
 	if err != nil {
 		return err
@@ -220,6 +255,7 @@ func (s *Server) restoreScene(w http.ResponseWriter, r *http.Request) error {
 	if _, err = s.Store.DB.Exec("UPDATE scenes SET deleted_at=NULL,updated_at=? WHERE id=?", scene.UpdatedAt, scene.ID); err != nil {
 		return err
 	}
+	s.record(r, store.ActivityRestored, scene, "")
 	JSON(w, 200, scene)
 	return nil
 }
@@ -253,9 +289,14 @@ func (s *Server) duplicateScene(w http.ResponseWriter, r *http.Request) (err err
 	if err = s.insertScene(scene); err != nil {
 		return err
 	}
+	// Recorded before the room copy so the copy's first save folds into it.
+	s.record(r, store.ActivityDuplicated, scene, old.Name)
 	defer func() {
 		if err != nil {
 			if cleanup := s.Store.DeleteScene(scene.ID); cleanup != nil {
+				s.Log.Error("duplicate cleanup failed", "error", cleanup)
+			}
+			if _, cleanup := s.Store.DB.Exec("DELETE FROM activity WHERE scene_id=?", scene.ID); cleanup != nil {
 				s.Log.Error("duplicate cleanup failed", "error", cleanup)
 			}
 		}

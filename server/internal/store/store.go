@@ -310,6 +310,9 @@ func (s *Store) Purge(now time.Time, retention int, kick func(string)) error {
 	if _, err = s.DB.Exec("DELETE FROM sessions WHERE expires_at < ?", Before(now)); err != nil {
 		return err
 	}
+	if _, err = s.DB.Exec("DELETE FROM activity WHERE at < ?", Before(now.AddDate(0, 0, -ActivityRetentionDays))); err != nil {
+		return err
+	}
 	for _, item := range []struct {
 		query, table, kind string
 		days               int
