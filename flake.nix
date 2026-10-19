@@ -43,7 +43,7 @@
             ];
             offlineCache = pkgs.fetchYarnDeps {
               yarnLock = "${webSrc}/yarn.lock";
-              hash = "sha256-bIaMGSXmOBMpXsLY8hLzJjtmURCnAPj+nq0KfroNmso=";
+              hash = "sha256-KMW3y0eKgJYyt7fUpafKscbHiFXryK4Z8aG+xT+pJM8=";
             };
             yarnBuildScript = "build:app:docker";
             env.VITE_APP_GIT_SHA = self.shortRev or self.dirtyShortRev or "dev";
@@ -57,7 +57,7 @@
             pname = "draw";
             inherit version;
             src = ./server;
-            vendorHash = "sha256-K3hBL0mpX4EX2OG9J+UXXAX8Jkw5/sL7RLvWFaC6qFk=";
+            vendorHash = "sha256-tAcDJyBHT7/p4AJt0RPiGMI/qSFW/VfuZN0YMJKo6Y4=";
             subPackages = [ "cmd/draw" ];
             ldflags = [
               "-s"
