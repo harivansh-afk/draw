@@ -62,7 +62,7 @@ public base URL are required for production.
 
 See the [server guide](server/README.md) for configuration, development, imports
 and backups, and the [specification](SPEC.md) for the full API contract.
-A [weekly workflow](.forgejo/workflows/upstream-sync.yml) proposes upstream merges
-as Forgejo pull requests.
+A [weekly workflow](.forgejo/workflows/upstream-sync.yml) merges upstream into a
+Forgejo pull request and merges it once the Go tests and Nix build pass.
 
 MIT, as upstream. This is an independent project, unaffiliated with Excalidraw.

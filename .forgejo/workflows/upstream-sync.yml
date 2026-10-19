@@ -14,14 +14,14 @@ jobs:
   merge-upstream:
     name: Merge excalidraw/excalidraw master
     runs-on: native
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      - name: Merge upstream and open a PR
+      - name: Merge upstream, check, and merge the PR
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -57,16 +57,34 @@ jobs:
 
           git push -f origin upstream-sync
 
-          existing=$(curl -fsS -H "$auth" "$api/pulls?state=open" |
+          pr=$(curl -fsS -H "$auth" "$api/pulls?state=open" |
             jq -r '.[] | select(.head.ref == "upstream-sync") | .number' | head -1)
-          if [ -n "$existing" ]; then
-            echo "PR #$existing already open, refreshed by force-push"
-            exit 0
+          if [ -n "$pr" ]; then
+            echo "PR #$pr already open, refreshed by force-push"
+          else
+            pr=$(jq -n --arg sha "$upstream_sha" '{
+              title: ("Merge upstream excalidraw master (" + $sha + ")"),
+              head: "upstream-sync",
+              base: "main",
+              body: "Weekly merge of github.com/excalidraw/excalidraw master. The upstream-sync job runs the Go tests and the Nix build on this branch and merges the PR when both pass; a failure leaves it open."
+            }' | curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d @- "$api/pulls" | jq -r .number)
           fi
 
-          jq -n --arg sha "$upstream_sha" '{
-            title: ("Merge upstream excalidraw master (" + $sha + ")"),
-            head: "upstream-sync",
-            base: "main",
-            body: "Weekly merge of github.com/excalidraw/excalidraw master. CI builds the binary and runs the Go and app tests; open /local and /s/<id> once before merging if the diff touches excalidraw-app."
-          }' | curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d @- "$api/pulls" >/dev/null
+          comment() {
+            jq -n --arg b "$1" '{body: $b}' |
+              curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d @- "$api/issues/$pr/comments" >/dev/null
+          }
+
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_NUMBER}"
+          if ! (cd server && nix shell nixpkgs#go -c sh -c 'go vet ./... && go test ./...'); then
+            comment "Go tests failed on this merge, so it was not auto-merged: $run_url"
+            exit 1
+          fi
+          if ! nix build .#default -L --no-link; then
+            comment "Nix build failed on this merge, so it was not auto-merged: $run_url"
+            exit 1
+          fi
+
+          jq -n '{Do: "merge", delete_branch_after_merge: true}' |
+            curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d @- "$api/pulls/$pr/merge"
+          echo "merged PR #$pr"
