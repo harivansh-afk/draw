@@ -3,8 +3,6 @@
 > [!IMPORTANT]
 > This is a read-only mirror of <https://git.harivan.sh/harivansh-afk/draw>. Use Forgejo for issues, pull requests, and active development.
 
-# draw
-
 Self-hosted Excalidraw with saved drawings, live collaboration and link sharing.
 A fork of [excalidraw/excalidraw](https://github.com/excalidraw/excalidraw), with
 Google sign-in, a dashboard, collections, trash, imports and a synced library.
