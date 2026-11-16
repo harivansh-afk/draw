@@ -1,4 +1,4 @@
-import { exportToCanvas } from "@excalidraw/excalidraw";
+import { exportScene } from "@excalidraw/excalidraw";
 import { THEME } from "@excalidraw/common";
 import { getNonDeletedElements } from "@excalidraw/element";
 import throttle from "lodash.throttle";
@@ -76,12 +76,22 @@ export const renderSceneThumbnail = async ({
   ctx.fillRect(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
 
   if (visible.length) {
-    const source = await exportToCanvas({
-      elements: visible,
-      appState: exportState,
-      files: files || {},
-      maxWidthOrHeight: THUMBNAIL_WIDTH * 2,
-      exportPadding: 16,
+    const source = await exportScene({
+      type: "canvas",
+      data: {
+        elements: visible,
+        appState: { viewBackgroundColor: background },
+        files: files || {},
+      },
+      config: {
+        theme: exportState.theme,
+        canvasBackgroundColor: exportState.exportBackground
+          ? background
+          : false,
+        scale: exportState.exportScale,
+        padding: 16,
+        maxWidthOrHeight: THUMBNAIL_WIDTH * 2,
+      },
     });
     const box = fitThumbnail(source.width, source.height);
     ctx.drawImage(source, box.x, box.y, box.width, box.height);

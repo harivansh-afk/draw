@@ -881,6 +881,14 @@ const ExcalidrawWrapper = () => {
   };
 
   const isOffline = useAtomValue(isOfflineAtom);
+  const isCollabAvailable =
+    !isCollabDisabled && (!isOffline || isCollaborating);
+
+  useEffect(() => {
+    if (!isCollabAvailable) {
+      setShareDialogState({ isOpen: false });
+    }
+  }, [isCollabAvailable, setShareDialogState]);
 
   const localStorageQuotaExceeded = useAtomValue(localStorageQuotaExceededAtom);
 
@@ -1051,7 +1059,7 @@ const ExcalidrawWrapper = () => {
             sceneMode ? <SceneTopLeftUI isMobile={isMobile} /> : null
           }
           renderTopRightUI={(isMobile) => {
-            if (isMobile || !collabAPI || isCollabDisabled) {
+            if (isMobile || !collabAPI || !isCollabAvailable) {
               return null;
             }
 
@@ -1084,7 +1092,7 @@ const ExcalidrawWrapper = () => {
           <AppMainMenu
             onCollabDialogOpen={onCollabDialogOpen}
             isCollaborating={isCollaborating}
-            isCollabEnabled={!isCollabDisabled}
+            isCollabEnabled={isCollabAvailable}
             theme={appTheme}
             refresh={() => forceRefresh((prev) => !prev)}
             onSaveToDashboard={onSaveToDashboard}
@@ -1095,7 +1103,7 @@ const ExcalidrawWrapper = () => {
           />
           <AppWelcomeScreen
             onCollabDialogOpen={onCollabDialogOpen}
-            isCollabEnabled={!isCollabDisabled}
+            isCollabEnabled={isCollabAvailable}
           />
           <OverwriteConfirmDialog>
             <OverwriteConfirmDialog.Actions.ExportToImage />
@@ -1183,7 +1191,7 @@ const ExcalidrawWrapper = () => {
                 label: t("labels.liveCollaboration"),
                 category: DEFAULT_CATEGORIES.app,
                 // scenes are always live; the Share command covers them
-                predicate: () => !sceneMode,
+                predicate: () => !sceneMode && isCollabAvailable,
                 keywords: [
                   "team",
                   "multiplayer",
@@ -1225,7 +1233,7 @@ const ExcalidrawWrapper = () => {
               {
                 label: t("labels.share"),
                 category: DEFAULT_CATEGORIES.app,
-                predicate: true,
+                predicate: isCollabAvailable,
                 icon: share,
                 keywords: [
                   "link",

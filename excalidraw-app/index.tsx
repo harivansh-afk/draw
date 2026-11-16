@@ -10,6 +10,9 @@ const DashboardApp = lazy(() =>
   import("./dashboard").then((module) => ({ default: module.DashboardApp })),
 );
 
+// the entry's JavaScript and CSS loaded and ran (`scripts/stats/perf.mjs`)
+performance.mark("excalidraw:app-start");
+
 window.__EXCALIDRAW_SHA__ = import.meta.env.VITE_APP_GIT_SHA;
 
 const mode = getAppMode();

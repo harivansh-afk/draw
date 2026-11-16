@@ -9,7 +9,10 @@ import type {
 
 import type { LinearElementEditor } from "@excalidraw/element";
 
-import type { MaybeTransformHandleType } from "@excalidraw/element";
+import type {
+  ListMarkerAdvance,
+  MaybeTransformHandleType,
+} from "@excalidraw/element";
 
 import type {
   PointerType,
@@ -49,6 +52,7 @@ import type {
   CaptureUpdateActionType,
   DurableIncrement,
   EphemeralIncrement,
+  RenderEnvironment,
   OnDuplicateData,
 } from "@excalidraw/element";
 import type { GlobalPoint } from "@excalidraw/math";
@@ -513,6 +517,7 @@ export interface AppState {
     duration?: number;
   } | null;
   zenModeEnabled: boolean;
+  minimapEnabled: boolean;
   theme: Theme;
   /** grid cell px size */
   gridSize: number;
@@ -795,26 +800,52 @@ export type InteractionConfig = {
   };
 };
 
-export type UIConfig = {
-  /**
-   * Default UI controls that stay enabled while the rest of Excalidraw's
-   * default UI is hidden. Opt-in: anything omitted or `false` is disabled.
-   */
-  enabled: {
-    /**
-     * The zoom-out, reset-zoom, and zoom-in controls.
-     *
-     * @default false
-     */
-    zoom?: boolean;
-    /**
-     * The button shown when the viewport is scrolled away from all content.
-     *
-     * @default false
-     */
-    scrollBackToContent?: boolean;
-  };
-};
+export type UIConfig =
+  | {
+      /**
+       * Default UI controls that stay enabled while the rest of Excalidraw's
+       * default UI is hidden. Opt-in: anything omitted or `false` is
+       * disabled.
+       */
+      enabled: {
+        /**
+         * The zoom controls (zoom out, the zoom level resetting it, zoom in).
+         *
+         * @default false
+         */
+        zoom?: boolean;
+        /**
+         * The button shown when the viewport is scrolled away from all
+         * content.
+         *
+         * @default false
+         */
+        scrollBackToContent?: boolean;
+      };
+    }
+  | {
+      /**
+       * Default UI controls that are removed while the rest of Excalidraw's
+       * default UI is rendered. Opt-out: anything omitted or `false` stays.
+       */
+      disabled: {
+        /**
+         * The minimap, and every way to toggle it (its footer button, the
+         * Preferences menu item, and the command palette and context menu
+         * entries). Without the minimap toggle next to them, the zoom
+         * controls are the zoom out / zoom level / zoom in buttons instead of
+         * the zoom menu.
+         *
+         * @default false
+         */
+        minimap?: boolean;
+      };
+    };
+
+/** A default UI control that `UIConfig` can keep or remove. */
+export type UIControl =
+  | keyof Extract<UIConfig, { enabled: unknown }>["enabled"]
+  | keyof Extract<UIConfig, { disabled: unknown }>["disabled"];
 
 /** Supported visual changes. Geometry, content, bindings and styles are not overridable. */
 export type ElementRenderOverride = Readonly<{
@@ -848,6 +879,30 @@ export interface ExcalidrawProps {
    * @default document
    */
   ownerDocument?: Document;
+  /**
+   * Host environment used by the renderer and export pipeline to create
+   * canvases and images. Supply a custom implementation to redirect canvas
+   * creation and image decoding to e.g. a host canvas pool, an
+   * `OffscreenCanvas`, or a non-DOM image decoder. When omitted, canvas and
+   * image creation fall back to `ownerDocument` / `ownerWindow`.
+   *
+   * The value must be referentially stable -- every render cache (element
+   * canvases, text metrics, char widths, link icons) is keyed by this
+   * object's identity, so a new identity is a full cache miss. Passing an
+   * inline object literal mints a fresh identity on every React render,
+   * which silently re-rasterizes every element on every frame; hoist it to a
+   * module constant or memoize it (e.g. `useMemo`) instead.
+   *
+   * Only `createCanvas` and `createImage` are required. `createPath` (used to
+   * fill freedraw strokes) falls back to the global `Path2D`, which every
+   * browser has -- a non-browser host without one must supply it. Pass
+   * `document` (the owner document) for SVG exports to be built in it rather
+   * than in the global `document`, and `textMetrics` to measure the editor's
+   * text with your own provider.
+   *
+   * @default { createCanvas: () => ownerDocument.createElement("canvas"), createImage: () => new ownerWindow.Image(), createPath: (d) => new ownerWindow.Path2D(d), document: ownerDocument }
+   */
+  renderEnvironment?: RenderEnvironment;
   onChange?: (
     elements: readonly OrderedExcalidrawElement[],
     appState: AppState,
@@ -959,10 +1014,12 @@ export interface ExcalidrawProps {
    * `false`.
    *
    * Pass a config object to keep specific default controls rendered while the
-   * rest of the default UI is hidden (see `UIConfig`):
+   * rest of the default UI is hidden, or to remove specific controls from the
+   * otherwise full default UI (see `UIConfig`):
    *
    * ```tsx
    * <Excalidraw ui={{ enabled: { zoom: true } }} />
+   * <Excalidraw ui={{ disabled: { minimap: true } }} />
    * ```
    *
    * NOTE: this is WIP and what default UI is/is not rendered when ui=false
@@ -1179,6 +1236,7 @@ export type AppClassProperties = {
   state: AppState;
   readonly ownerDocument: Document;
   readonly ownerWindow: Window & typeof globalThis;
+  renderEnvironment: RenderEnvironment;
   api: App["api"];
   sessionExportThemeOverride: App["sessionExportThemeOverride"];
   interactiveCanvas: HTMLCanvasElement | null;
@@ -1198,11 +1256,12 @@ export type AppClassProperties = {
   scene: App["scene"];
   syncActionResult: App["syncActionResult"];
   fonts: App["fonts"];
-  pasteFromClipboard: App["pasteFromClipboard"];
+  clipboard: App["clipboard"];
   id: App["id"];
   onInsertElements: App["onInsertElements"];
   onExportImage: App["onExportImage"];
   viewport: App["viewport"];
+  wheel: App["wheel"];
   addFiles: App["addFiles"];
   addElementsFromPasteOrLibrary: App["addElementsFromPasteOrLibrary"];
   togglePenMode: App["togglePenMode"];
@@ -1216,12 +1275,16 @@ export type AppClassProperties = {
   flowchart: App["flowchart"];
   drawShape: App["drawShape"];
   arrowText: App["arrowText"];
+  text: App["text"];
   textTool: App["textTool"];
   cursor: App["cursor"];
   bucketFill: App["bucketFill"];
   duplicate: App["duplicate"];
   toolDrag: App["toolDrag"];
   activeResizeHandle: App["activeResizeHandle"];
+  selectionTool: App["selectionTool"];
+  wrap: App["wrap"];
+  modifiers: App["modifiers"];
   isToolLocked: App["isToolLocked"];
   getEffectiveGridSize: App["getEffectiveGridSize"];
   setPlugins: App["setPlugins"];
@@ -1246,6 +1309,7 @@ export type AppClassProperties = {
 
   isInteractionEnabled: App["isInteractionEnabled"];
   isNavigationEnabled: App["isNavigationEnabled"];
+  isUIControlEnabled: App["isUIControlEnabled"];
 };
 
 export type PointerDownState = Readonly<{
@@ -1281,9 +1345,20 @@ export type PointerDownState = Readonly<{
     allHitElements: NonDeleted<ExcalidrawElement>[];
     // This is determined on the initial pointer down event
     wasAddedToSelection: boolean;
+    // The element an alt-click selects instead: the one below the selected
+    // one, cycling through the elements under the pointer (determined on the
+    // initial pointer down event)
+    cycleTarget: NonDeleted<ExcalidrawElement> | null;
     // Whether selected element(s) were duplicated, might change during the
     // pointer interaction
     hasBeenDuplicated: boolean;
+    // The list markers advanced by duplicating the selected element(s)
+    // (alt-drag)
+    advancedListMarkers: readonly ListMarkerAdvance[];
+    // The text whose editing the pointer down ended (alt-pressing it in the
+    // text editor), swapped with its duplicate when duplicated, which is
+    // then edited on drop
+    editedTextId: ExcalidrawTextElement["id"] | null;
     // Whether the pointer is hitting the common bounding box of selected
     // elements, which is useful for discriminating between selecitng
     // the entire selection vs a specific element
@@ -1303,6 +1378,9 @@ export type PointerDownState = Readonly<{
     // by default same as PointerDownState.origin. On alt-duplication, reset
     // to current pointer position at time of duplication.
     origin: { x: number; y: number };
+    // The offset from origin (axis-locked with shift) as of the previous
+    // pointer move in the crop editor, which moves the image by the change
+    lastOffset: { x: number; y: number };
     // explicit flag for specific scenarios such as:
     // - after lasso selection until the next pointer down
     blockDragging: boolean;
@@ -1358,6 +1436,24 @@ export interface ExcalidrawImperativeAPI {
   history: {
     clear: InstanceType<typeof App>["resetHistory"];
   };
+  /**
+   * Selects elements (or their ids — one or many), adds them to or removes
+   * them from the selection, or clears it — as the editor does: an element is
+   * selected with its group (unless `deep`), a frame and its children aren't
+   * selected at the same time, and locked elements are skipped (unless
+   * `includeLocked`). Text editing and cropping end, and the link popup of a
+   * lone selected element shows. Missing and deleted elements are skipped.
+   *
+   * By default the change is recorded for undo along with the next undoable
+   * change — pass `captureUpdate` as for `updateScene()` otherwise. Like
+   * `updateScene()`, it applies on the next render: read it back through
+   * `onChange()` or `getAppState()` after that. Works in view mode too, where
+   * the selection shows without transform handles.
+   */
+  selection: Pick<
+    InstanceType<typeof App>["selection"],
+    "select" | "add" | "remove" | "clear"
+  >;
   getSceneElements: InstanceType<typeof App>["getSceneElements"];
   getAppState: () => InstanceType<typeof App>["state"];
   getFiles: () => InstanceType<typeof App>["files"];
@@ -1598,9 +1694,10 @@ export type ViewportOffsets = Offsets & {
 /**
  * Value of the `data-viewport-ui-name` attribute, identifying a
  * conditionally-rendered surface (marked with `data-viewport-ui`) so that
- * `getViewportOffsets` can reserve space for it while it's hidden (see the
- * `reserve` option). Whenever a named surface is rendered, its measured
- * footprint is remembered; reserving uses that remembered footprint, or an
- * approximate default if the surface hasn't been rendered yet.
+ * it can be measured on its own, and so that `getViewportOffsets` can
+ * reserve space for it while it's hidden (see the `reserve` option).
+ * Whenever a named surface is rendered, its measured footprint is
+ * remembered; reserving uses that remembered footprint, or an approximate
+ * default if the surface hasn't been rendered yet.
  */
-export type ViewportUIName = "sidebar" | "stylesPanel";
+export type ViewportUIName = "sidebar" | "stylesPanel" | "stats";
