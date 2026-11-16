@@ -1,8 +1,6 @@
 # AGENTS.md
 
-`draw` is a fork of github.com/excalidraw/excalidraw that turns excalidraw.com's
-own editor into a self-hosted Excalidraw+. Read `SPEC.md` before changing
-anything; it is the product and API contract.
+`draw` is a fork of github.com/excalidraw/excalidraw that turns excalidraw.com's own editor into a self-hosted Excalidraw+. Read `SPEC.md` before changing anything; it is the product and API contract.
 
 ## Layout
 
@@ -24,16 +22,10 @@ scripts/            repo tooling (upstream helpers, crypto test vectors)
 
 ## Upstream tracking
 
-- Remote `upstream` is github.com/excalidraw/excalidraw; `origin` is
-  git.harivan.sh/harivansh-afk/draw. Sync with `git merge upstream/master`.
-- `packages/`, `examples/`, `scripts/` (upstream ones) and the root tooling are
-  upstream's. Do not modify them; if the editor needs a change, it goes to
-  upstream first.
-- Keep `excalidraw-app/` diffs against upstream minimal and mechanical so
-  merges stay cheap: swap imports, add files, delete promo code. Do not
-  reformat or reorganise upstream files. New behaviour goes into new files.
-- The editor's behaviour is sacred: no keybinding, gesture, menu, tool or
-  rendering changes. If you find yourself touching `packages/excalidraw`, stop.
+- Remote `upstream` is github.com/excalidraw/excalidraw; `origin` is git.harivan.sh/harivansh-afk/draw. Sync with `git merge upstream/master`.
+- `packages/`, `examples/`, `scripts/` (upstream ones) and the root tooling are upstream's. Do not modify them; if the editor needs a change, it goes to upstream first.
+- Keep `excalidraw-app/` diffs against upstream minimal and mechanical so merges stay cheap: swap imports, add files, delete promo code. Do not reformat or reorganise upstream files. New behaviour goes into new files.
+- The editor's behaviour is sacred: no keybinding, gesture, menu, tool or rendering changes. If you find yourself touching `packages/excalidraw`, stop.
 
 ## Commands
 
@@ -49,39 +41,24 @@ nix build .#default                   # full binary with embedded frontend
 
 ## Conventions
 
-- Go: standard library first, `internal/` packages, table-driven tests, no
-  ORM, errors wrapped with context. Handlers return typed JSON errors
-  (`{"error","message"}`).
-- TypeScript: match upstream style (prettier config is upstream's). No new
-  runtime dependencies without a reason written in the PR.
-- One keyboard engine owns the dashboard's document listener
-  (`dashboard/keyboard/useKeyEngine.ts`); nothing else binds keys globally.
-  Menus, dialogs and inputs keep their own element-scoped handlers and the
-  engine yields while they are open. The editor pages keep upstream's.
+- Go: standard library first, `internal/` packages, table-driven tests, no ORM, errors wrapped with context. Handlers return typed JSON errors (`{"error","message"}`).
+- TypeScript: match upstream style (prettier config is upstream's). No new runtime dependencies without a reason written in the PR.
+- One keyboard engine owns the dashboard's document listener (`dashboard/keyboard/useKeyEngine.ts`); nothing else binds keys globally. Menus, dialogs and inputs keep their own element-scoped handlers and the engine yields while they are open. The editor pages keep upstream's.
 - No comments that restate code. Explain non-obvious decisions in one line.
 - Commits: imperative subject, body says why. PRs go to Forgejo (`origin`).
 - Secrets never enter the repo or the Nix store.
 
 ## Dashboard keyboard model
 
-`excalidraw-app/dashboard/keyboard/` is pure TypeScript with one React hook,
-and imports only public `@excalidraw/common` helpers (`KEYS`' platform rule,
-`isWritableElement`), never editor internals:
+`excalidraw-app/dashboard/keyboard/` is pure TypeScript with one React hook, and imports only public `@excalidraw/common` helpers (`KEYS`' platform rule, `isWritableElement`), never editor internals:
 
 - `chord.ts` turns a KeyboardEvent into text (`G`, `mod+k`, `shift+enter`).
 - `keymap.ts` is a trie over key sequences: exact, prefix, or miss.
-- `engine.ts` holds one listener's state: pending sequence, vim-style prefix
-  timeout, restart on a miss, typing-target bypass with a passthrough list.
-- `commands.ts` is the single registry. A command's `keys`, `label`, `when`
-  and `run` drive the bindings, the palette rows and the `?` sheet at once,
-  so add or change a shortcut there and nowhere else. Never bind a key by
-  hand in a component.
-- `grid.ts`, `fuzzy.ts`, `format.ts` are the cursor math, palette ranking
-  and chip rendering. All of it is covered by `dashboard/tests/keyboard.test.ts`.
+- `engine.ts` holds one listener's state: pending sequence, vim-style prefix timeout, restart on a miss, typing-target bypass with a passthrough list.
+- `commands.ts` is the single registry. A command's `keys`, `label`, `when` and `run` drive the bindings, the palette rows and the `?` sheet at once, so add or change a shortcut there and nowhere else. Never bind a key by hand in a component.
+- `grid.ts`, `fuzzy.ts`, `format.ts` are the cursor math, palette ranking and chip rendering. All of it is covered by `dashboard/tests/keyboard.test.ts`.
 
-The dashboard keeps Excalidraw's visual language with a neutral greyscale in
-place of the purple; see SPEC.md "Dashboard". The editor's own UI stays
-upstream's.
+The dashboard keeps Excalidraw's visual language with a neutral greyscale in place of the purple; see SPEC.md "Dashboard". The editor's own UI stays upstream's.
 
 ## Upstream guidelines (kept from upstream AGENTS.md)
 

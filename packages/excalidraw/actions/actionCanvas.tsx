@@ -126,6 +126,22 @@ export const actionClearCanvas = register({
   },
 });
 
+/**
+ * The viewport point (client coords, see `ZoomOptions`) a zoom keeps in place.
+ * Defaults to the canvas center.
+ */
+type ZoomAnchor = { viewportX: number; viewportY: number };
+
+const getZoomAnchor = (
+  /** the action's formData */
+  anchor: unknown,
+  appState: AppState,
+): ZoomAnchor =>
+  (anchor as ZoomAnchor | null | undefined) ?? {
+    viewportX: appState.width / 2 + appState.offsetLeft,
+    viewportY: appState.height / 2 + appState.offsetTop,
+  };
+
 export const actionZoomIn = register({
   name: "zoomIn",
   label: "buttons.zoomIn",
@@ -134,14 +150,13 @@ export const actionZoomIn = register({
   icon: ZoomInIcon,
   trackEvent: { category: "canvas" },
   predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
-  perform: (_elements, appState, _, app) => {
+  perform: (_elements, appState, anchor, app) => {
     app.requestUnfollow();
     const nextState = {
       ...appState,
       ...getViewportForZoomWithScrollConstraints(
         {
-          viewportX: appState.width / 2 + appState.offsetLeft,
-          viewportY: appState.height / 2 + appState.offsetTop,
+          ...getZoomAnchor(anchor, appState),
           nextZoom: getNormalizedZoom(appState.zoom.value + ZOOM_STEP),
         },
         appState,
@@ -165,6 +180,8 @@ export const actionZoomIn = register({
           className="zoom-in-button zoom-button"
           icon={ZoomInIcon}
           aria-label={t("buttons.zoomIn")}
+          // the shortcut used to reach AT via the (now removed) native title
+          aria-keyshortcuts={getShortcutKey("CtrlOrCmd++")}
           disabled={zoomValue >= MAX_ZOOM}
           onClick={() => {
             updateData(null);
@@ -186,14 +203,13 @@ export const actionZoomOut = register({
   navigation: true,
   trackEvent: { category: "canvas" },
   predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
-  perform: (_elements, appState, _, app) => {
+  perform: (_elements, appState, anchor, app) => {
     app.requestUnfollow();
     const nextState = {
       ...appState,
       ...getViewportForZoomWithScrollConstraints(
         {
-          viewportX: appState.width / 2 + appState.offsetLeft,
-          viewportY: appState.height / 2 + appState.offsetTop,
+          ...getZoomAnchor(anchor, appState),
           nextZoom: getNormalizedZoom(appState.zoom.value - ZOOM_STEP),
         },
         appState,
@@ -217,6 +233,8 @@ export const actionZoomOut = register({
           className="zoom-out-button zoom-button"
           icon={ZoomOutIcon}
           aria-label={t("buttons.zoomOut")}
+          // the shortcut used to reach AT via the (now removed) native title
+          aria-keyshortcuts={getShortcutKey("CtrlOrCmd+-")}
           disabled={zoomValue <= MIN_ZOOM}
           onClick={() => {
             updateData(null);
@@ -238,7 +256,7 @@ export const actionResetZoom = register({
   navigation: true,
   trackEvent: { category: "canvas" },
   predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
-  perform: (_elements, appState, _, app) => {
+  perform: (_elements, appState, anchor, app) => {
     app.requestUnfollow();
     // reset to 100%, unless a zoom lock floors the zoom higher — then reset to
     // the locked minimum zoom (the lock's resting zoom level)
@@ -249,8 +267,7 @@ export const actionResetZoom = register({
       ...appState,
       ...getViewportForZoomWithScrollConstraints(
         {
-          viewportX: appState.width / 2 + appState.offsetLeft,
-          viewportY: appState.height / 2 + appState.offsetTop,
+          ...getZoomAnchor(anchor, appState),
           nextZoom: getNormalizedZoom(nextZoom),
         },
         appState,
